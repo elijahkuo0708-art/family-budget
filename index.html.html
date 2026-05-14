@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>家庭基金月結系統</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --sea-deep:#1a6fa8;--sea-mid:#2e8ec8;--sea-light:#5bb3e0;--sea-pale:#b8dff4;
+  --glass:rgba(255,255,255,0.72);--border:rgba(46,142,200,0.18);--border2:rgba(46,142,200,0.30);
+  --text:#1a3a52;--text-mid:#2d6080;--text-muted:#6490a8;
+  --accent:#1a6fa8;--accent2:#0a9e7a;--warn:#d97706;--danger:#e03e5a;--green:#059669;
+  --radius:12px;--radius-sm:8px;
+  --shadow:0 2px 16px rgba(26,111,168,0.10);--shadow-lg:0 4px 28px rgba(26,111,168,0.14);
+}
+body{background:linear-gradient(175deg,#aad8f0 0%,#c8e8f7 22%,#dff0fb 44%,#eef7fd 65%,#f0ead8 85%,#f5edd8 100%);min-height:100vh;color:var(--text);font-family:'Noto Sans TC',system-ui,sans-serif;font-size:14px;line-height:1.6;position:relative;overflow-x:hidden}
+.ocean-strip{position:fixed;bottom:0;left:0;right:0;pointer-events:none;z-index:0;height:80px}
+.wave{position:absolute;bottom:0;width:200%;height:52px;border-radius:50% 50% 0 0/18px 18px 0 0}
+.wave1{background:rgba(91,179,224,.22);animation:wv 8s ease-in-out infinite}
+.wave2{background:rgba(46,142,200,.14);animation:wv 11s ease-in-out infinite .5s reverse;bottom:8px}
+.wave3{background:rgba(184,223,244,.28);animation:wv 14s ease-in-out infinite 1.2s;bottom:4px}
+@keyframes wv{0%,100%{transform:translateX(-30%)}50%{transform:translateX(5%)}}
+.lh-beam{position:fixed;right:44px;bottom:130px;width:0;height:0;border-left:110px solid transparent;border-bottom:200px solid rgba(255,248,160,.16);transform-origin:bottom right;animation:beam 5.5s ease-in-out infinite;pointer-events:none;z-index:2}
+@keyframes beam{0%,100%{transform:rotate(-18deg);opacity:.12}50%{transform:rotate(22deg);opacity:.30}}
+.lh-wrap{position:fixed;right:22px;bottom:0;z-index:3;pointer-events:none;width:68px}
+.gull{position:fixed;pointer-events:none;z-index:4;opacity:.6}
+.gull1{top:6%;animation:g1 20s linear infinite}
+.gull2{top:13%;animation:g2 28s linear infinite 5s;opacity:.42}
+@keyframes g1{from{left:-48px}to{left:110%}}
+@keyframes g2{from{right:-48px}to{right:110%}}
+.app{padding:1.25rem;max-width:960px;margin:0 auto;position:relative;z-index:5}
+.header{background:var(--glass);backdrop-filter:blur(14px);border:1px solid var(--border2);border-radius:16px;padding:1.2rem 1.5rem;margin-bottom:1.2rem;box-shadow:var(--shadow-lg);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.header h1{font-size:19px;font-weight:700;color:var(--sea-deep);display:flex;align-items:center;gap:9px}
+.header-sub{font-size:12px;color:var(--text-muted);margin-top:2px}
+.header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.drive-bar{background:linear-gradient(135deg,rgba(255,255,255,.82),rgba(184,223,244,.38));border:1px solid var(--border2);border-radius:var(--radius);padding:.85rem 1.2rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:var(--shadow)}
+.drive-label{font-size:12px;color:var(--text-muted);flex-shrink:0;font-weight:600}
+.drive-bar input{flex:1;min-width:190px;background:rgba(255,255,255,.82);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:6px 10px;color:var(--text);font-size:13px;outline:none;font-family:monospace}
+.drive-bar input:focus{border-color:var(--sea-mid);box-shadow:0 0 0 3px rgba(46,142,200,.14)}
+.dstatus{font-size:12px;padding:4px 10px;border-radius:10px;flex-shrink:0;font-weight:600}
+.ds-ok{background:rgba(5,150,105,.1);color:var(--green)}
+.ds-err{background:rgba(224,62,90,.1);color:var(--danger)}
+.ds-idle{background:rgba(100,144,168,.1);color:var(--text-muted)}
+.step-nav{display:flex;gap:5px;margin-bottom:1.2rem;background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:40px;padding:5px;overflow-x:auto;box-shadow:var(--shadow)}
+.sbtn{flex-shrink:0;padding:7px 17px;border-radius:30px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;font-size:13px;font-weight:500;transition:all .2s;white-space:nowrap}
+.sbtn.active{background:linear-gradient(135deg,var(--sea-light),var(--sea-deep));color:#fff;box-shadow:0 2px 10px rgba(26,111,168,.25)}
+.sbtn.done{color:var(--accent2);font-weight:600}
+.sbtn:hover:not(.active){background:rgba(46,142,200,.1);color:var(--accent)}
+.card{background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--border2);border-radius:var(--radius);padding:1.2rem;margin-bottom:1rem;box-shadow:var(--shadow)}
+.card-title{font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:1rem;display:flex;align-items:center;gap:8px}
+.badge{font-size:11px;padding:3px 9px;border-radius:10px;background:linear-gradient(135deg,var(--sea-light),var(--sea-deep));color:#fff;letter-spacing:0;text-transform:none;font-weight:700}
+.ir{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.ir label{font-size:13px;color:var(--text-mid);width:110px;flex-shrink:0;font-weight:500}
+.ir input{flex:1;background:rgba(255,255,255,.85);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:7px 12px;color:var(--text);font-size:14px;outline:none;text-align:right;transition:border-color .18s,box-shadow .18s}
+.ir input:focus{border-color:var(--sea-mid);box-shadow:0 0 0 3px rgba(46,142,200,.13)}
+.unit{font-size:12px;color:var(--text-muted);width:24px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+@media(max-width:580px){.g2,.g3{grid-template-columns:1fr 1fr}}
+.sc{background:linear-gradient(135deg,rgba(255,255,255,.9),rgba(184,223,244,.3));border:1px solid var(--border2);border-radius:var(--radius-sm);padding:.875rem 1rem;text-align:center;box-shadow:var(--shadow)}
+.sc .lbl{font-size:11px;color:var(--text-muted);margin-bottom:4px;font-weight:600}
+.val{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.vbl{color:var(--sea-deep)}.vgn{color:var(--green)}.vgd{color:var(--warn)}.vrd{color:var(--danger)}.vtl{color:var(--accent2)}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{text-align:left;font-size:11px;color:var(--text-muted);font-weight:700;padding:6px 10px;border-bottom:2px solid var(--sea-pale);letter-spacing:.05em}
+.tbl td{padding:8px 10px;font-size:13px;border-bottom:1px solid rgba(46,142,200,.07);vertical-align:middle}
+.tbl tr:hover td{background:rgba(184,223,244,.18)}
+.tbl td input{background:rgba(255,255,255,.85);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;color:var(--text);font-size:13px;width:110px;outline:none;text-align:right}
+.tbl td input:focus{border-color:var(--sea-mid)}
+.btn{padding:8px 20px;border-radius:30px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:all .18s;white-space:nowrap}
+.bpr{background:linear-gradient(135deg,var(--sea-light),var(--sea-deep));color:#fff;box-shadow:0 2px 10px rgba(26,111,168,.22)}
+.bpr:hover{filter:brightness(1.08);box-shadow:0 4px 16px rgba(26,111,168,.32)}
+.bsu{background:linear-gradient(135deg,#0ab586,#059669);color:#fff;box-shadow:0 2px 10px rgba(5,150,105,.18)}
+.bsu:hover{filter:brightness(1.08)}
+.bgh{background:rgba(255,255,255,.7);border:1px solid var(--border2);color:var(--text-mid)}
+.bgh:hover{background:rgba(255,255,255,.95);border-color:var(--sea-mid);color:var(--sea-deep)}
+.bwn{background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.28);color:var(--warn)}
+.bwn:hover{background:rgba(217,119,6,.18)}
+.bsm{padding:5px 13px;font-size:12px}
+.br{display:flex;gap:8px;flex-wrap:wrap;margin-top:.75rem}
+.pb{background:linear-gradient(135deg,rgba(255,255,255,.9),rgba(184,223,244,.28));border:1px solid var(--border2);border-radius:var(--radius);padding:1rem;box-shadow:var(--shadow)}
+.pb h3{font-size:13px;font-weight:700;margin-bottom:.75rem;color:var(--sea-deep)}
+.pb.xy h3{color:var(--accent2)}
+.cr{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;border-bottom:1px solid rgba(46,142,200,.07)}
+.cr:last-child{border:none;font-weight:700;font-size:14px;color:var(--warn);padding-top:10px;margin-top:4px}
+.neg{color:var(--danger)}.pos{color:var(--green)}
+.ci{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:var(--radius-sm);margin-bottom:6px;border:1px solid var(--border);background:rgba(255,255,255,.58);transition:all .18s;cursor:pointer;user-select:none}
+.ci:hover{border-color:var(--sea-mid);background:rgba(255,255,255,.82)}
+.ci.ok{background:linear-gradient(135deg,rgba(5,150,105,.07),rgba(184,223,244,.28));border-color:rgba(5,150,105,.32)}
+.ci input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent2);cursor:pointer;flex-shrink:0}
+.ci .il{flex:1;font-size:14px;color:var(--text)}
+.ci.ok .il{color:var(--accent2);font-weight:600}
+.ci .is{font-size:11px;color:var(--text-muted);margin-top:1px}
+.ci .ia{font-size:13px;font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums;flex-shrink:0}
+.pw{display:flex;align-items:center;gap:10px;margin-bottom:1rem}
+.pb2{flex:1;height:8px;background:var(--sea-pale);border-radius:4px;overflow:hidden}
+.pf{height:100%;background:linear-gradient(90deg,var(--sea-mid),var(--accent2));border-radius:4px;transition:width .4s}
+.pt{font-size:12px;color:var(--text-muted);white-space:nowrap;font-weight:600}
+.sb2{background:linear-gradient(135deg,rgba(26,111,168,.07),rgba(184,223,244,.22));border:1px solid rgba(46,142,200,.22);border-radius:var(--radius);padding:1rem;margin-top:.75rem}
+.sr{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;color:var(--text-mid)}
+.sr.tot{font-weight:700;font-size:15px;color:var(--text);border-top:1px solid var(--border2);margin-top:8px;padding-top:10px}
+.pill{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.pbl{background:rgba(26,111,168,.11);color:var(--sea-deep)}
+.ptl{background:rgba(10,158,122,.11);color:var(--accent2)}
+.pgd{background:rgba(217,119,6,.11);color:var(--warn)}
+.pgr{background:rgba(100,144,168,.1);color:var(--text-muted)}
+.al{padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:.75rem}
+.al-i{background:rgba(46,142,200,.09);border:1px solid rgba(46,142,200,.22);color:var(--sea-deep)}
+.al-s{background:rgba(5,150,105,.09);border:1px solid rgba(5,150,105,.22);color:var(--green)}
+.al-w{background:rgba(217,119,6,.09);border:1px solid rgba(217,119,6,.22);color:var(--warn)}
+.al-d{background:rgba(224,62,90,.09);border:1px solid rgba(224,62,90,.22);color:var(--danger)}
+hr.dv{border:none;border-top:1px solid var(--border);margin:.875rem 0}
+.tc{display:none}.tc.active{display:block}
+select{background:rgba(255,255,255,.85);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:6px 10px;color:var(--text);font-size:13px;outline:none}
+select:focus{border-color:var(--sea-mid)}
+.mbg{display:none;position:fixed;inset:0;background:rgba(26,58,90,.32);backdrop-filter:blur(5px);z-index:100;align-items:center;justify-content:center}
+.mbg.open{display:flex}
+.modal{background:linear-gradient(135deg,#fff,#eef7fd);border:1px solid var(--border2);border-radius:16px;padding:1.5rem;width:min(460px,92vw);max-height:82vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
+.modal h2{font-size:16px;font-weight:700;margin-bottom:1rem;color:var(--sea-deep)}
+.ma{display:flex;gap:8px;justify-content:flex-end;margin-top:1rem}
+.toast{position:fixed;bottom:22px;right:22px;background:linear-gradient(135deg,var(--sea-light),var(--sea-deep));color:#fff;padding:10px 20px;border-radius:30px;font-size:13px;font-weight:600;z-index:999;box-shadow:0 4px 18px rgba(26,111,168,.3);opacity:0;transition:opacity .3s;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="ocean-strip">
+  <div class="wave wave1"></div><div class="wave wave2"></div><div class="wave wave3"></div>
+</div>
+<div class="lh-beam"></div>
+<svg class="lh-wrap" viewBox="0 0 68 158" fill="none">
+  <defs><linearGradient id="tg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#cce0f0"/><stop offset="100%" stop-color="#e8f4fc"/></linearGradient></defs>
+  <rect x="8" y="146" width="52" height="12" rx="3" fill="#c9a96e" opacity=".9"/>
+  <path d="M21 146 L17 58 L51 58 L47 146 Z" fill="url(#tg)" stroke="#a0c8e8" stroke-width="1"/>
+  <path d="M17.8 128 L47.2 128 L46.5 116 L18.5 116 Z" fill="#e05a6a" opacity=".7"/>
+  <path d="M18.5 98 L46.5 98 L45.8 86 L19.2 86 Z" fill="#e05a6a" opacity=".7"/>
+  <path d="M19.5 68 L45.5 68 L45 58 L20 58 Z" fill="#e05a6a" opacity=".7"/>
+  <rect x="13" y="56" width="42" height="3" rx="1.5" fill="#8fc4e0"/>
+  <rect x="16" y="44" width="36" height="14" rx="2" fill="#2e8ec8" opacity=".88"/>
+  <rect x="18" y="46" width="32" height="10" rx="1" fill="#ffe97a" opacity=".6"/>
+  <path d="M18 44 L34 24 L50 44 Z" fill="#2e8ec8"/>
+  <rect x="32" y="18" width="4" height="8" fill="#2e8ec8"/>
+  <circle cx="34" cy="17" r="4" fill="#fbbf24"/>
+  <circle cx="34" cy="17" r="2" fill="#fff" opacity=".7"/>
+  <rect x="13" y="44" width="42" height="3" rx="1.5" fill="#8fc4e0"/>
+  <rect x="27" y="76" width="14" height="18" rx="3" fill="#b8dff4" opacity=".75"/>
+  <rect x="27" y="106" width="14" height="16" rx="3" fill="#b8dff4" opacity=".75"/>
+  <rect x="27" y="126" width="14" height="14" rx="3" fill="#b8dff4" opacity=".6"/>
+  <path d="M28 146 L28 132 Q34 126 40 132 L40 146 Z" fill="#c9a96e" opacity=".75"/>
+</svg>
+<svg class="gull gull1" style="width:30px" viewBox="0 0 40 18" fill="none">
+  <path d="M20 9 Q13 1 0 5" stroke="#6490a8" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M20 9 Q27 1 40 5" stroke="#6490a8" stroke-width="1.8" stroke-linecap="round"/>
+</svg>
+<svg class="gull gull2" style="width:22px;right:-40px" viewBox="0 0 40 18" fill="none">
+  <path d="M20 9 Q13 1 0 5" stroke="#6490a8" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M20 9 Q27 1 40 5" stroke="#6490a8" stroke-width="1.8" stroke-linecap="round"/>
+</svg>
+
+<div class="app">
+<div class="header">
+  <div>
+    <h1><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--sea-deep)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>家庭基金月結系統</h1>
+    <div class="header-sub">每月 10–20 日進行作業</div>
+  </div>
+  <div class="header-right">
+    <select id="sel-month" onchange="chMonth(this.value)">
+      <option value="1">2026年 1月</option><option value="2">2026年 2月</option><option value="3">2026年 3月</option><option value="4">2026年 4月</option><option value="5" selected>2026年 5月</option><option value="6">2026年 6月</option><option value="7">2026年 7月</option><option value="8">2026年 8月</option><option value="9">2026年 9月</option><option value="10">2026年 10月</option><option value="11">2026年 11月</option><option value="12">2026年 12月</option>
+    </select>
+    <button class="btn bgh bsm" onclick="sv()">💾 儲存</button>
+  </div>
+</div>
+
+<div class="drive-bar">
+  <span class="dstatus ds-idle" id="dst">未連線</span>
+  <span class="drive-label">Drive 檔案 ID：</span>
+  <input type="text" id="did" placeholder="貼上 Google Drive 檔案 ID" oninput="saveDid()">
+  <button class="btn bgh bsm" onclick="openImp()">⬇ 匯入備份</button>
+  <button class="btn bwn bsm" onclick="doExp()">⬆ 匯出備份</button>
+  <button class="btn bgh bsm" onclick="openHelp()">?</button>
+</div>
+
+<div class="step-nav">
+  <button class="sbtn active" id="n0" onclick="go(0)">① 確認收入</button>
+  <button class="sbtn" id="n1" onclick="go(1)">② 固定提撥</button>
+  <button class="sbtn" id="n2" onclick="go(2)">③ 代墊登錄</button>
+  <button class="sbtn" id="n3" onclick="go(3)">④ 轉帳計算</button>
+  <button class="sbtn" id="n4" onclick="go(4)">⑤ 匯款檢核</button>
+</div>
+
+<div class="tc active" id="s0">
+  <div class="card">
+    <div class="card-title">本月收入確認 <span class="badge">Step 1</span></div>
+    <div class="ir"><label>仲維薪水</label><input type="number" id="izw" value="36000" oninput="rc()"><span class="unit">元</span></div>
+    <div class="ir"><label>馨誼薪水</label><input type="number" id="ixy" value="29092" oninput="rc()"><span class="unit">元</span></div>
+    <div class="ir"><label>房租收入</label><input type="number" id="irt" value="17000" oninput="rc()"><span class="unit">元</span></div>
+    <div class="ir"><label>其他收入</label><input type="number" id="iot" value="0" oninput="rc()"><span class="unit">元</span></div>
+    <hr class="dv">
+    <div class="g3">
+      <div class="sc"><div class="lbl">家庭總收入</div><div class="val vbl" id="ti">—</div></div>
+      <div class="sc"><div class="lbl">仲維十一奉獻</div><div class="val vgd" id="tzw">—</div></div>
+      <div class="sc"><div class="lbl">馨誼十一奉獻</div><div class="val vgd" id="txy">—</div></div>
+    </div>
+  </div>
+  <div class="br"><button class="btn bpr" onclick="go(1)">下一步：固定提撥 →</button></div>
+</div>
+
+<div class="tc" id="s1">
+  <div class="card">
+    <div class="card-title">每月固定提撥 <span class="badge">Step 2</span></div>
+    <div class="al al-i" id="ph">已自動帶入預設值，金額可手動調整後按「確認提撥」</div>
+    <table class="tbl">
+      <thead><tr><th>項目</th><th>類型</th><th>匯款目的地</th><th style="text-align:right">本月金額（元）</th></tr></thead>
+      <tbody id="ptb"></tbody>
+      <tfoot><tr><td colspan="3" style="padding:8px 10px;font-weight:700;color:var(--text-muted)">本月總提撥</td><td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--sea-deep);font-size:15px" id="tp">—</td></tr></tfoot>
+    </table>
+    <hr class="dv">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn bsu" onclick="cfProv()">✓ 確認提撥</button>
+      <span id="ps" style="font-size:13px;color:var(--text-muted)"></span>
+    </div>
+  </div>
+  <div class="br"><button class="btn bgh" onclick="go(0)">← 上一步</button><button class="btn bpr" onclick="go(2)">下一步：代墊登錄 →</button></div>
+</div>
+
+<div class="tc" id="s2">
+  <div class="card">
+    <div class="card-title">代墊費用登錄 <span class="badge">Step 3</span></div>
+    <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:flex-end">
+      <div style="flex:1.5;min-width:110px"><div style="font-size:11px;color:var(--text-muted);margin-bottom:3px;font-weight:600">分類帳戶</div><select id="nc"><option>車保險</option><option>維修+貸</option><option>牌照稅</option><option>人身險</option><option>水電網路</option><option>子女雜支</option><option>房貸</option><option>急難金</option><option>其他</option></select></div>
+      <div style="flex:2;min-width:130px"><div style="font-size:11px;color:var(--text-muted);margin-bottom:3px;font-weight:600">說明（選填）</div><input type="text" id="nd" placeholder="例：機油分期" style="width:100%;background:rgba(255,255,255,.85);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:6px 10px;color:var(--text);font-size:13px;outline:none"></div>
+      <div style="flex:1;min-width:90px"><div style="font-size:11px;color:var(--text-muted);margin-bottom:3px;font-weight:600">金額（元）</div><input type="number" id="na" placeholder="0" style="width:100%;background:rgba(255,255,255,.85);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:6px 10px;color:var(--text);font-size:13px;outline:none;text-align:right"></div>
+      <div style="flex-shrink:0"><div style="font-size:11px;color:var(--text-muted);margin-bottom:3px;font-weight:600">代墊人</div><select id="np"><option value="zw">仲維</option><option value="xy">馨誼</option></select></div>
+      <button class="btn bpr bsm" onclick="addE()" style="flex-shrink:0;align-self:flex-end">＋ 新增</button>
+    </div>
+    <table class="tbl"><thead><tr><th>分類</th><th>說明</th><th style="text-align:right">金額</th><th>代墊人</th><th></th></tr></thead><tbody id="etb"></tbody><tfoot id="eft"></tfoot></table>
+  </div>
+  <div class="g2" style="margin-bottom:1rem">
+    <div class="sc"><div class="lbl">仲維代墊合計</div><div class="val vbl" id="tzw2">NT$0</div></div>
+    <div class="sc"><div class="lbl">馨誼代墊合計</div><div class="val vtl" id="txy2">NT$0</div></div>
+  </div>
+  <div class="br"><button class="btn bgh" onclick="go(1)">← 上一步</button><button class="btn bpr" onclick="go(3)">下一步：轉帳計算 →</button></div>
+</div>
+
+<div class="tc" id="s3">
+  <div id="cr"></div>
+  <div class="br"><button class="btn bgh" onclick="go(2)">← 上一步</button><button class="btn bpr" onclick="go(4)">下一步：匯款檢核 →</button></div>
+</div>
+
+<div class="tc" id="s4">
+  <div class="card">
+    <div class="card-title">本月匯款檢核表 <span class="badge">Step 5</span></div>
+    <div class="pw"><div class="pb2"><div class="pf" id="cp" style="width:0%"></div></div><div class="pt" id="ct">0/0</div></div>
+    <div id="cb"></div>
+  </div>
+  <div class="card"><div class="card-title">月結確認</div><div id="fm"><div style="font-size:13px;color:var(--text-muted)">完成所有項目後，這裡會顯示月結確認。</div></div></div>
+  <div class="br"><button class="btn bgh" onclick="go(3)">← 上一步</button><button class="btn bsu" onclick="doExp()">⬆ 匯出備份到 Google Drive</button></div>
+</div>
+</div>
+
+<div class="mbg" id="mhelp">
+  <div class="modal">
+    <h2>如何取得 Google Drive 檔案 ID</h2>
+    <ol style="padding-left:1.2rem;font-size:13px;color:var(--text-mid);line-height:2.2">
+      <li>在 Google Drive 找到記帳備份 <code>.json</code> 檔案</li>
+      <li>右鍵 → 「取得連結」</li>
+      <li>連結格式：<code style="font-size:11px;color:var(--sea-deep);word-break:break-all">…/file/d/<strong style="color:var(--warn)">這段是ID</strong>/view</code></li>
+      <li>把中間那段 ID 貼到輸入框</li>
+    </ol>
+    <hr class="dv">
+    <p style="font-size:12px;color:var(--text-muted)">第一次使用：在 Google Drive 建立空的 <code>family-budget-2026.json</code>，記下 ID 即可。</p>
+    <div class="ma"><button class="btn bgh bsm" onclick="cm('mhelp')">關閉</button></div>
+  </div>
+</div>
+
+<div class="mbg" id="mimp">
+  <div class="modal">
+    <h2>匯入備份資料</h2>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:.75rem">貼上從 Google Drive 下載的 JSON 備份內容：</p>
+    <textarea id="ij" rows="8" style="width:100%;background:rgba(255,255,255,.85);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:8px 10px;color:var(--text);font-size:12px;font-family:monospace;outline:none;resize:vertical"></textarea>
+    <div class="ma"><button class="btn bgh bsm" onclick="cm('mimp')">取消</button><button class="btn bpr bsm" onclick="doImp()">匯入</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const PD=[
+  {id:'mortgage',label:'房貸',type:'外部帳戶',dest:'第一銀行',amt:11000},
+  {id:'emergency',label:'急難金',type:'獨立帳戶',dest:'台灣銀行',amt:10000},
+  {id:'road_tax',label:'牌照稅',type:'中信子帳戶',dest:'',amt:1000},
+  {id:'car_ins',label:'車保險',type:'中信子帳戶',dest:'',amt:800},
+  {id:'car_maint',label:'維修+貸',type:'中信子帳戶',dest:'',amt:7300},
+  {id:'life_ins',label:'人身險',type:'中信子帳戶',dest:'',amt:5700},
+  {id:'utilities',label:'水電網路',type:'中信子帳戶',dest:'',amt:1000},
+  {id:'children',label:'子女雜支',type:'中信子帳戶',dest:'',amt:6000},
+];
+const LS='fbv5';
+let S={month:5,income:{zw:36000,xy:29092,rent:17000,other:0},prov:JSON.parse(JSON.stringify(PD)),provOk:false,exp:[],chk:{},did:''};
+function sv(){ci();localStorage.setItem(LS,JSON.stringify(S));tk('💾 已儲存')}
+function ld(){try{const d=localStorage.getItem(LS);if(d)Object.assign(S,JSON.parse(d))}catch(e){}const x=localStorage.getItem('fb_did')||'';S.did=x;apUI();rc()}
+function saveDid(){S.did=G('did').value.trim();localStorage.setItem('fb_did',S.did)}
+function sDS(c,t){const e=G('dst');e.className='dstatus '+c;e.textContent=t}
+function doExp(){ci();const b=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(b),download:`family-budget-2026-${String(S.month).padStart(2,'0')}.json`});a.click();URL.revokeObjectURL(a.href);sDS('ds-ok','已下載');tk('📁 JSON 已下載，請上傳到 Google Drive')}
+function openImp(){document.getElementById('mimp').classList.add('open')}
+function openHelp(){document.getElementById('mhelp').classList.add('open')}
+function cm(id){document.getElementById(id).classList.remove('open')}
+function doImp(){const t=G('ij').value.trim();if(!t)return;try{Object.assign(S,JSON.parse(t));apUI();rc();sDS('ds-ok','已載入');tk('✅ 資料載入成功');cm('mimp')}catch(e){alert('JSON格式有誤')}}
+document.querySelectorAll('.mbg').forEach(e=>e.addEventListener('click',x=>{if(x.target===e)e.classList.remove('open')}));
+function apUI(){
+  G('sel-month').value=S.month;G('izw').value=S.income.zw;G('ixy').value=S.income.xy;G('irt').value=S.income.rent;G('iot').value=S.income.other;
+  if(S.did)G('did').value=S.did;
+  rProv();rExp();
+  if(S.provOk){setPS();G('ph').style.display='none';G('n1').classList.add('done')}
+}
+function ci(){S.income.zw=+G('izw').value||0;S.income.xy=+G('ixy').value||0;S.income.rent=+G('irt').value||0;S.income.other=+G('iot').value||0}
+function rc(){ci();const{zw,xy,rent,other}=S.income;st('ti','NT$'+f(zw+xy+rent+other));st('tzw','NT$'+f(Math.round(zw/10)));st('txy','NT$'+f(Math.round(xy/10)));rPT();rCalc();rChk()}
+function f(n){return Math.round(n).toLocaleString('zh-TW')}
+function G(id){return document.getElementById(id)}
+function st(id,v){const e=G(id);if(e)e.textContent=v}
+function chMonth(m){S.month=+m;sv()}
+function go(i){for(let j=0;j<5;j++){G('s'+j).classList.toggle('active',j===i);G('n'+j).classList.toggle('active',j===i)}if(i===3)rCalc();if(i===4)rChk()}
+function tk(m){const t=G('toast');t.textContent=m;t.style.opacity='1';clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity='0',2600)}
+function saveToLocal(){sv()}
+function rProv(){G('ptb').innerHTML=S.prov.map((p,i)=>`<tr><td style="font-weight:600">${p.label}</td><td><span class="pill ${p.type==='中信子帳戶'?'pgd':p.type==='外部帳戶'?'pbl':'ptl'}">${p.type}</span></td><td style="color:var(--text-muted);font-size:12px">${p.dest||'—'}</td><td style="text-align:right"><input type="number" value="${p.amt}" oninput="S.prov[${i}].amt=+this.value;rPT();rCalc();rChk()"></td></tr>`).join('');rPT()}
+function rPT(){st('tp','NT$'+f(S.prov.reduce((s,p)=>s+p.amt,0)))}
+function setPS(){const e=G('ps');e.textContent='✓ 已確認提撥';e.style.color='var(--accent2)'}
+function cfProv(){S.provOk=true;setPS();G('ph').style.display='none';G('n1').classList.add('done');sv();tk('✅ 提撥已確認')}
+function addE(){const cat=G('nc').value,desc=G('nd').value,amt=+G('na').value||0,person=G('np').value;if(!amt){G('na').focus();return}S.exp.push({id:Date.now(),cat,desc,amt,person});G('na').value='';G('nd').value='';rExp();rCalc();rChk();sv()}
+function delE(id){S.exp=S.exp.filter(e=>e.id!==id);rExp();rCalc();rChk();sv()}
+function rExp(){
+  const tb=G('etb');
+  if(!S.exp.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--text-muted)">尚未登錄代墊費用</td></tr>'}
+  else tb.innerHTML=S.exp.map(e=>`<tr><td><span class="pill pgd">${e.cat}</span></td><td style="color:var(--text-muted)">${e.desc||'—'}</td><td style="text-align:right;font-weight:600;color:var(--sea-deep)">NT$${f(e.amt)}</td><td><span class="pill ${e.person==='zw'?'pbl':'ptl'}">${e.person==='zw'?'仲維':'馨誼'}</span></td><td style="text-align:right"><button onclick="delE(${e.id})" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:20px;line-height:1">×</button></td></tr>`).join('');
+  const zt=S.exp.filter(e=>e.person==='zw').reduce((s,e)=>s+e.amt,0);const xt=S.exp.filter(e=>e.person==='xy').reduce((s,e)=>s+e.amt,0);
+  st('tzw2','NT$'+f(zt));st('txy2','NT$'+f(xt));
+  G('eft').innerHTML=`<tr><td colspan="2" style="padding:8px 10px;font-weight:700;color:var(--text-muted)">代墊總計</td><td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--sea-deep)">NT$${f(zt+xt)}</td><td colspan="2"></td></tr>`;
+}
+function nums(){const{zw,xy,rent,other}=S.income;const ti=zw+xy+rent+other,tp=S.prov.reduce((s,p)=>s+p.amt,0);const al=Math.round((ti-tp)/2),tz=Math.round(zw/10),tx=Math.round(xy/10);const ze=S.exp.filter(e=>e.person==='zw').reduce((s,e)=>s+e.amt,0),xe=S.exp.filter(e=>e.person==='xy').reduce((s,e)=>s+e.amt,0);const zx=zw-al-tz-ze,xx=xy-al-tx-xe;return{ti,tp,al,tz,tx,ze,xe,zx,xx,tot:zx+xx+rent+other,zw,xy,rent,other}}
+function rCalc(){const c=nums();G('cr').innerHTML=`<div class="card"><div class="card-title">計算結果 <span class="badge">Step 4</span></div><div class="g3" style="margin-bottom:1rem"><div class="sc"><div class="lbl">家庭總收入</div><div class="val vbl">NT$${f(c.ti)}</div></div><div class="sc"><div class="lbl">總固定提撥</div><div class="val vrd">NT$${f(c.tp)}</div></div><div class="sc"><div class="lbl">每人平均生活費</div><div class="val vgn">NT$${f(c.al)}</div></div></div><div class="g2" style="margin-bottom:1rem"><div class="pb"><h3>👨 仲維</h3><div class="cr"><span>薪水</span><span class="pos">+${f(c.zw)}</span></div><div class="cr"><span>－ 平均生活費</span><span class="neg">−${f(c.al)}</span></div><div class="cr"><span>－ 十一奉獻</span><span class="neg">−${f(c.tz)}</span></div><div class="cr"><span>－ 代墊公款</span><span class="neg">−${f(c.ze)}</span></div><div class="cr"><span>應轉入公款</span><span>NT$${f(c.zx)}</span></div></div><div class="pb xy"><h3>👩 馨誼</h3><div class="cr"><span>薪水</span><span class="pos">+${f(c.xy)}</span></div><div class="cr"><span>－ 平均生活費</span><span class="neg">−${f(c.al)}</span></div><div class="cr"><span>－ 十一奉獻</span><span class="neg">−${f(c.tx)}</span></div><div class="cr"><span>－ 代墊公款</span><span class="neg">−${f(c.xe)}</span></div><div class="cr"><span>應轉入公款</span><span>NT$${f(c.xx)}</span></div></div></div><div class="sb2"><div class="sr"><span>仲維轉入</span><span>NT$${f(c.zx)}</span></div><div class="sr"><span>馨誼轉入</span><span>NT$${f(c.xx)}</span></div><div class="sr"><span>房租＋其他直入</span><span>NT$${f(c.rent+c.other)}</span></div><div class="sr tot"><span>中信公款本月應有金額</span><span style="color:var(--warn)">NT$${f(c.tot)}</span></div></div>${c.zx<0?'<div class="al al-d" style="margin-top:.75rem">⚠ 仲維轉帳為負數，請確認代墊費用</div>':''}${c.xx<0?'<div class="al al-d" style="margin-top:.75rem">⚠ 馨誼轉帳為負數，請確認代墊費用</div>':''}</div>`}
+function rChk(){const c=nums();const mA=S.prov.find(p=>p.id==='mortgage')?.amt||11000,eA=S.prov.find(p=>p.id==='emergency')?.amt||10000,sA=S.prov.filter(p=>p.type==='中信子帳戶').reduce((s,p)=>s+p.amt,0);const items=[{id:'i0',l:'確認本月夫妻薪資已入帳',s:'仲維、馨誼各自確認',a:''},{id:'i1',l:'房貸匯款完成',s:'第一銀行',a:'NT$'+f(mA)},{id:'i2',l:'急難金匯款完成',s:'台灣銀行（只能往上加）',a:'NT$'+f(eA)},{id:'i3',l:'中信子帳戶提撥登錄',s:'牌照稅、車保險、維修+貸、人身險、水電網路、子女雜支',a:'NT$'+f(sA)},{id:'i4',l:'仲維十一奉獻',s:'薪水×1/10',a:'NT$'+f(c.tz)},{id:'i5',l:'馨誼十一奉獻',s:'薪水×1/10',a:'NT$'+f(c.tx)},{id:'i6',l:'計算每人平均生活費',s:'（總收入−總提撥）÷2',a:'NT$'+f(c.al)},{id:'i7',l:'仲維轉入中信公款',s:'薪水−生活費−十一−代墊',a:'NT$'+f(c.zx)},{id:'i8',l:'馨誼轉入中信公款',s:'薪水−生活費−十一−代墊',a:'NT$'+f(c.xx)},{id:'i9',l:'核對中信帳戶餘額與系統一致',s:'確認金額 NT$'+f(c.tot),a:''},{id:'i10',l:'截圖存檔，告知彼此月結完成',s:'月結作業收工 🎉',a:''}];
+G('cb').innerHTML=items.map(it=>{const ok=!!S.chk[it.id];return`<div class="ci ${ok?'ok':''}" onclick="tc2('${it.id}',this)"><input type="checkbox" ${ok?'checked':''} onclick="event.stopPropagation();tc2('${it.id}',this.closest('.ci'))"><div style="flex:1"><div class="il">${it.l}</div><div class="is">${it.s}</div></div>${it.a?`<div class="ia">${it.a}</div>`:''}</div>`}).join('');
+const done=items.filter(i=>S.chk[i.id]).length,pct=Math.round(done/items.length*100);
+G('cp').style.width=pct+'%';G('ct').textContent=done+' / '+items.length+' 完成';
+G('fm').innerHTML=done===items.length?'<div class="al al-s">🎉 本月月結全部完成！記得截圖給彼此確認。</div>':'<div style="font-size:13px;color:var(--text-muted)">完成所有項目後，這裡會顯示月結確認。</div>'}
+function tc2(id,el){S.chk[id]=!S.chk[id];el.classList.toggle('ok',S.chk[id]);el.querySelector('input[type=checkbox]').checked=!!S.chk[id];rChk();sv()}
+ld();
+</script>
+</body>
+</html>
