@@ -1309,8 +1309,8 @@ function calcNumbers(){
   // 單筆收支：只計算「應支出月份」等於本月的項目到轉帳計算中
   const adhocInc=S.adhoc.filter(a=>a.type==='income'&&(a.payMonth||S.month)===S.month).reduce((s,a)=>s+a.amt,0);
   const adhocExp=S.adhoc.filter(a=>a.type==='expense'&&(a.payMonth||S.month)===S.month).reduce((s,a)=>s+a.amt,0);
-  const al=Math.round((ti-tp)/2); // 平均生活費
   const tzw=Math.round(zw/10),txy=Math.round(xy/10);
+  const al=Math.round((ti-tp-tzw-txy)/2); // 平均生活費（總收入-總提撥-兩人十一奉獻）÷2
   const ze=S.expenses.filter(e=>e.person==='zw').reduce((s,e)=>s+e.amt,0);
   const xe=S.expenses.filter(e=>e.person==='xy').reduce((s,e)=>s+e.amt,0);
   const zx=zw-al-tzw-ze; // 仲維應轉入公款
@@ -1332,6 +1332,9 @@ function renderCalc(){
     <div class="sc2"><div class="lbl">家庭總收入</div><div class="val vb">NT$${f(c.ti)}</div></div>
     <div class="sc2"><div class="lbl">總固定提撥</div><div class="val vr">NT$${f(c.tp)}</div></div>
     <div class="sc2"><div class="lbl">每人平均生活費</div><div class="val vg">NT$${f(c.al)}</div></div>
+  </div>
+  <div style="font-size:11px;color:var(--tl);margin-bottom:1rem;padding:6px 10px;background:rgba(74,155,190,.07);border-radius:var(--rs)">
+    平均生活費 ＝（家庭總收入 − 總固定提撥 − 仲維十一奉獻 − 馨誼十一奉獻）÷ 2
   </div>
   <div class="g2" style="margin-bottom:1rem">
     <div class="pb"><h3>🧑 仲維</h3>
@@ -1382,7 +1385,7 @@ function renderChk(){
     {id:'i4',label:'中信子帳戶提撥登錄',sub:'牌照稅、車保險、維修+貸、人身險、水電網路、子女雜支',amt:'NT$'+f(sa)},
     {id:'i5',label:'仲維十一奉獻',sub:'薪水 × 1/10',amt:'NT$'+f(c.tzw)},
     {id:'i6',label:'馨誼十一奉獻',sub:'薪水 × 1/10',amt:'NT$'+f(c.txy)},
-    {id:'i7',label:'計算每人平均生活費',sub:'（總收入 − 總提撥）÷ 2',amt:'NT$'+f(c.al)},
+    {id:'i7',label:'計算每人平均生活費',sub:'（總收入 − 總提撥 − 仲維十一 − 馨誼十一）÷ 2',amt:'NT$'+f(c.al)},
     {id:'i8',label:'仲維轉入中信公款',sub:'薪水 − 生活費 − 十一 − 代墊',amt:'NT$'+f(c.zx)},
     {id:'i9',label:'馨誼轉入中信公款',sub:'薪水 − 生活費 − 十一 − 代墊',amt:'NT$'+f(c.xx)},
     {id:'i10',label:'核對中信帳戶實際餘額與系統一致',sub:'帳戶應剩 NT$'+f(c.ctbcBalance)+'（房貸與急難金已匯出）',amt:''},
