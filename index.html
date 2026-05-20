@@ -1347,8 +1347,9 @@ function renderCalc(){
     S.adhoc.filter(a=>a.type==='income'&&a.cat===subNames2[id]).forEach(a=>bal+=a.amt);
     subTotal2+=bal;
   });
-  // 該月總支出 = 固定提撥 + 兩人生活費 + 兩人十一奉獻 + 代墊支出
-  const totalExp = c.tp + (c.al*2) + c.tzw + c.txy + c.ze + c.xe;
+  // 本月總支出 = 固定提撥（含房貸、急難金、子帳戶）+ 兩人生活費 + 兩人十一奉獻
+  // 代墊是從子帳戶實際付出，已含在固定提撥的子帳戶累積裡，不重複加計
+  const totalExp = c.tp + (c.al*2) + c.tzw + c.txy;
 
   el.innerHTML=`<div class="card"><div class="card-title">計算結果 <span class="badge">Step 5</span></div>
   <div class="g3" style="margin-bottom:1rem">
@@ -1381,8 +1382,13 @@ function renderCalc(){
     <div class="sr"><span>馨誼轉入公款</span><span class="pos">+${f(c.xx)}</span></div>
     <div class="sr"><span>房租＋其他直入</span><span class="pos">+${f(c.rent+c.other)}</span></div>
     ${c.adhocInc||c.adhocExp?`<div class="sr"><span>單筆收支淨額（本月應支出）</span><span class="${c.adhocInc>=c.adhocExp?'pos':'neg'}">${c.adhocInc>=c.adhocExp?'+':'−'}${f(Math.abs(c.adhocInc-c.adhocExp))}</span></div>`:''}
-    <div class="sr"><span>代墊支出（仲維）</span><span class="neg">${c.ze>0?'−'+f(c.ze):'0'}</span></div>
-    <div class="sr"><span>代墊支出（馨誼）</span><span class="neg">${c.xe>0?'−'+f(c.xe):'0'}</span></div>
+    <div class="sr"><span>代墊（仲維，已從子帳戶付出）</span><span class="neg">${c.ze>0?'−'+f(c.ze):'0'}</span></div>
+    <div class="sr"><span>代墊（馨誼，已從子帳戶付出）</span><span class="neg">${c.xe>0?'−'+f(c.xe):'0'}</span></div>
+    <div style="height:1px;background:var(--bo2);margin:6px 0"></div>
+    <div style="font-size:11px;font-weight:700;color:var(--tl);letter-spacing:.06em;margin-bottom:6px">▸ 本月總支出明細</div>
+    <div class="sr"><span>固定提撥（房貸＋急難金＋子帳戶）</span><span class="neg">−${f(c.tp)}</span></div>
+    <div class="sr"><span>兩人生活費</span><span class="neg">−${f(c.al*2)}</span></div>
+    <div class="sr"><span>兩人十一奉獻</span><span class="neg">−${f(c.tzw+c.txy)}</span></div>
     <div class="sr" style="border-top:1px solid var(--bo2);margin-top:6px;padding-top:8px;font-weight:700;font-size:15px;color:var(--td)">
       <span>本月總支出</span>
       <span class="neg">NT$${f(totalExp)}</span>
