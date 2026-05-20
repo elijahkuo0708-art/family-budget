@@ -631,6 +631,43 @@ select:focus{border-color:var(--ac)}
   </div>
 </div>
 
+
+<!-- ════════════════════════
+     頁面：信用卡分期
+════════════════════════ -->
+<div class="page" id="page-credit">
+  <!-- 密碼鎖定畫面 -->
+  <div id="cc-lock-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:1.25rem">
+    <div style="font-size:48px">🔐</div>
+    <div style="font-size:17px;font-weight:700;color:var(--td)">信用卡分期管理</div>
+    <div style="font-size:13px;color:var(--tl)">請輸入密碼以繼續</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="password" id="cc-pwd-inp" maxlength="10" placeholder="輸入密碼"
+        class="form-input" style="width:160px;text-align:center;font-size:18px;letter-spacing:.2em"
+        onkeydown="if(event.key==='Enter')checkCCPwd()">
+      <button class="btn btn-p" onclick="checkCCPwd()">解鎖</button>
+    </div>
+    <div id="cc-pwd-err" style="font-size:12px;color:var(--da);display:none">密碼錯誤，請重試</div>
+  </div>
+  <!-- 主內容（解鎖後顯示） -->
+  <div id="cc-main" style="display:none">
+    <div class="page-header">
+      <div><div class="page-title">💳 信用卡分期管理</div><div class="page-sub">資料已加密 · 獨立同步</div></div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-s btn-sm" onclick="ccDriveSync()">☁ 同步</button>
+        <button class="btn btn-g btn-sm" onclick="lockCC()">🔒 鎖定</button>
+      </div>
+    </div>
+    <!-- 總覽統計 -->
+    <div id="cc-summary-grid" class="g3" style="margin-bottom:.875rem"></div>
+    <!-- 各卡片（動態渲染） -->
+    <div id="cc-cards-container"></div>
+    <!-- 新增卡片按鈕 -->
+    <button class="btn btn-g" style="width:100%;margin-bottom:1rem" onclick="ccAddCard()">＋ 新增信用卡</button>
+    <!-- Drive 同步狀態 -->
+    <div id="cc-sync-info" style="font-size:12px;color:var(--th);text-align:center;margin-bottom:1rem"></div>
+  </div>
+</div>
 <!-- ════════════════════════
      頁面：Google Drive 同步
 ════════════════════════ -->
@@ -730,6 +767,11 @@ select:focus{border-color:var(--ac)}
   <button class="nav-item" id="nav-emergency" onclick="showPage('page-emergency')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
     <span class="nav-label">急難金</span>
+    <div class="nav-dot"></div>
+  </button>
+  <button class="nav-item" id="nav-credit" onclick="showPage('page-credit')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+    <span class="nav-label">信用卡</span>
     <div class="nav-dot"></div>
   </button>
   <button class="nav-item" id="nav-drive" onclick="showPage('page-drive')">
@@ -1058,11 +1100,12 @@ function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  const navMap={'page-overview':'nav-overview','page-ledger':'nav-ledger','page-monthly':'nav-monthly','page-emergency':'nav-emergency','page-drive':'nav-drive'};
+  const navMap={'page-overview':'nav-overview','page-ledger':'nav-ledger','page-monthly':'nav-monthly','page-emergency':'nav-emergency','page-credit':'nav-credit','page-drive':'nav-drive'};
   const ni=document.getElementById(navMap[id]);if(ni)ni.classList.add('active');
   if(id==='page-overview')refreshOverview();
   if(id==='page-ledger')renderLedgerPage();
   if(id==='page-emergency')renderEmPage();
+  if(id==='page-credit')initCCPage();
   if(id==='page-drive'){updateDriveUI();updateLastSyncInfo();updateLastSaveUI();}
   window.scrollTo(0,0);
 }
@@ -1638,6 +1681,393 @@ function renderEmPage(){
   S.emergencyBalance=running;
   const el=document.getElementById('em-balance');
   if(el)el.textContent='NT$'+f(running);
+}
+
+// ══════ 信用卡分期 ══════
+// ═══════════════════════════════════════════════════
+// 信用卡模組 — 完全獨立，加密儲存，獨立 Drive 同步
+// ═══════════════════════════════════════════════════
+const CC_PWD = '123880';
+const CC_LK = 'family_cc_v1';
+const CC_DRIVE_FILE = 'credit-card-data.enc.json';
+let _ccUnlocked = false;
+let SC = null; // 解密後的信用卡資料
+
+// ── XOR 加密 / 解密（密碼保護）──
+function ccEnc(obj, pwd){
+  const s = JSON.stringify(obj);
+  let o = '';
+  for(let i=0;i<s.length;i++) o += String.fromCharCode(s.charCodeAt(i) ^ pwd.charCodeAt(i%pwd.length));
+  try{ return btoa(unescape(encodeURIComponent(o))); }catch(e){ return btoa(o); }
+}
+function ccDec(enc, pwd){
+  try{
+    let s; try{ s=decodeURIComponent(escape(atob(enc))); }catch{ s=atob(enc); }
+    let o='';
+    for(let i=0;i<s.length;i++) o += String.fromCharCode(s.charCodeAt(i) ^ pwd.charCodeAt(i%pwd.length));
+    return JSON.parse(o);
+  }catch(e){ return null; }
+}
+
+// ── 預設資料（來自 Excel）──
+function ccDefaultData(){
+  return {
+    lastSave: null,
+    _ccDriveFileId: null,
+    cards:[
+      {id:'gogo', name:'台新 GoGo 黑狗卡', bank:'台新銀行', tag:'刷超商/超市', color:'#e05252',
+       note:'每月帳單需滿5,000才享網路消費3%回饋', annualFee:'免年費',
+       items:[
+         {id:1, name:'電話費（分期）',  monthly:1000, periods:36, paid:12},
+         {id:2, name:'Switch 2 (A8)',   monthly:1179, periods:24, paid:5,  note:'結清中'},
+         {id:3, name:'NEO2',            monthly:1049, periods:10, paid:5,  note:'已存到存錢罐'},
+       ]},
+      {id:'momo', name:'富邦 MOMO 卡', bank:'富邦銀行', tag:'刷MOMO/飼料貓砂', color:'#d97706',
+       note:'MOMO站內消費3%，指定品牌3–5%', annualFee:'免年費',
+       items:[
+         {id:1, name:'iPhone 16 Pro Max', monthly:1952, periods:24, paid:13},
+         {id:2, name:'AVATA 2',           monthly:1367, periods:24, paid:9},
+         {id:3, name:'ECOFLOW River Plus', monthly:786,  periods:24, paid:9, note:'公款'},
+       ]},
+      {id:'skoda', name:'信貸 Skoda YETI', bank:'台新銀行', tag:'汽車信貸', color:'#2d7da8',
+       note:'Skoda YETI 車貸，共84期', annualFee:'—',
+       items:[
+         {id:1, name:'Skoda YETI 車貸', monthly:4710, periods:84, paid:38},
+       ]},
+      {id:'federal', name:'聯邦 國旅卡', bank:'聯邦銀行', tag:'刷保費/MOMO', color:'#2e9e7a',
+       note:'目前無分期項目', annualFee:'免年費',
+       items:[]},
+      {id:'esun', name:'玉山（已剪卡）', bank:'玉山銀行', tag:'已停用', color:'#8ab4c8',
+       note:'已剪卡，無分期項目', annualFee:'—',
+       items:[]},
+    ]
+  };
+}
+
+// ── localStorage ──
+function ccSave(){
+  if(!SC) return;
+  SC.lastSave = new Date().toISOString();
+  localStorage.setItem(CC_LK, ccEnc(SC, CC_PWD));
+}
+function ccLoad(){
+  const raw = localStorage.getItem(CC_LK);
+  if(!raw){ SC = ccDefaultData(); return; }
+  const dec = ccDec(raw, CC_PWD);
+  SC = dec || ccDefaultData();
+}
+
+// ── Drive 同步（獨立檔案）──
+async function ccGetOrCreateDriveFile(folderId){
+  const id = SC._ccDriveFileId;
+  if(id) return id;
+  const ff = await gFetch(`https://www.googleapis.com/drive/v3/files?q=name='${CC_DRIVE_FILE}' and '${folderId}' in parents and trashed=false&fields=files(id)`);
+  if(ff.files && ff.files.length) { SC._ccDriveFileId = ff.files[0].id; return SC._ccDriveFileId; }
+  return null;
+}
+async function ccDriveSync(){
+  if(!gToken){ toast('請先在 Drive 同步頁連結 Google 帳號'); showPage('page-drive'); return; }
+  if(!SC){ toast('信用卡資料未載入'); return; }
+  const pill = document.getElementById('cc-sync-info');
+  if(pill) pill.textContent = '同步中…';
+  try{
+    const ok = await ensureValidToken(); if(!ok) throw new Error('token invalid');
+    // 確保主資料夾存在
+    let folderId = S._driveFolderId;
+    if(!folderId){
+      const fs = await gFetch(`https://www.googleapis.com/drive/v3/files?q=name='家庭基金系統' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)`);
+      if(fs.files && fs.files.length) folderId = fs.files[0].id;
+      else{ const cf = await gFetch('https://www.googleapis.com/drive/v3/files',{method:'POST',body:JSON.stringify({name:'家庭基金系統',mimeType:'application/vnd.google-apps.folder'})}); folderId=cf.id; }
+      S._driveFolderId = folderId;
+    }
+    const fileId = await ccGetOrCreateDriveFile(folderId);
+    // 先嘗試從 Drive 讀取判斷誰比較新
+    if(fileId){
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,{headers:{Authorization:'Bearer '+gToken}});
+      if(res.ok){
+        const raw = await res.text();
+        const remote = ccDec(raw.trim().replace(/^"|"$/g,'').replace(/\\"/g,'"'), CC_PWD)
+                    || (()=>{try{const j=JSON.parse(raw);return ccDec(j.enc||j,CC_PWD);}catch{return null;}})();
+        if(remote && remote.lastSave && SC.lastSave && new Date(remote.lastSave) > new Date(SC.lastSave)){
+          if(confirm('Drive 上有更新的信用卡資料，要下載覆蓋本地嗎？')){
+            SC = remote; ccSave(); renderCCPage();
+            if(pill) pill.textContent = '最後同步：'+new Date(SC.lastSave).toLocaleString('zh-TW');
+            toast('✅ 已從 Drive 更新信用卡資料'); return;
+          }
+        }
+      }
+    }
+    // 上傳本地資料（加密後存成 JSON string）
+    ccSave();
+    const encStr = localStorage.getItem(CC_LK);
+    const blob = new Blob([JSON.stringify({enc: encStr, _hint:'credit-card-encrypted'})],{type:'application/json'});
+    if(fileId){
+      const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,{method:'PATCH',headers:{Authorization:'Bearer '+gToken,'Content-Type':'application/json'},body:blob});
+      if(!r.ok) throw new Error('Upload '+r.status);
+    } else {
+      const fm = new FormData();
+      fm.append('metadata', new Blob([JSON.stringify({name:CC_DRIVE_FILE,parents:[folderId]})],{type:'application/json'}));
+      fm.append('file', blob);
+      const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{Authorization:'Bearer '+gToken},body:fm});
+      if(!r.ok) throw new Error('Upload '+r.status);
+      const d = await r.json(); SC._ccDriveFileId = d.id; ccSave();
+    }
+    if(pill) pill.textContent = '最後同步：'+new Date(SC.lastSave).toLocaleString('zh-TW');
+    toast('✅ 信用卡資料已同步到 Drive');
+  }catch(e){ if(pill) pill.textContent='同步失敗：'+e.message; toast('同步失敗：'+e.message); }
+}
+
+// ── 計算輔助 ──
+function ccItemLeft(item){ return Math.max(0, item.periods - item.paid); }
+function ccItemLeftAmt(item){ return ccItemLeft(item) * item.monthly; }
+function ccCardMonthly(card){ return card.items.reduce((s,i)=>s+i.monthly,0); }
+function ccCardRemaining(card){ return card.items.reduce((s,i)=>s+ccItemLeftAmt(i),0); }
+function ccTotalMonthly(){ return SC.cards.reduce((s,c)=>s+ccCardMonthly(c),0); }
+function ccTotalRemaining(){ return SC.cards.reduce((s,c)=>s+ccCardRemaining(c),0); }
+
+// ── 密碼鎖 ──
+function checkCCPwd(){
+  const inp = document.getElementById('cc-pwd-inp');
+  const err = document.getElementById('cc-pwd-err');
+  if(!inp) return;
+  if(inp.value === CC_PWD){
+    _ccUnlocked = true;
+    ccLoad();
+    document.getElementById('cc-lock-screen').style.display = 'none';
+    document.getElementById('cc-main').style.display = 'block';
+    renderCCPage();
+    err.style.display = 'none';
+    const si = document.getElementById('cc-sync-info');
+    if(si && SC && SC.lastSave) si.textContent = '最後同步：'+new Date(SC.lastSave).toLocaleString('zh-TW');
+  } else {
+    err.style.display = 'block';
+    inp.value = ''; inp.focus();
+    inp.style.borderColor = 'var(--da)';
+    setTimeout(()=>{ inp.style.borderColor=''; }, 1000);
+  }
+}
+function lockCC(){
+  _ccUnlocked = false; SC = null;
+  document.getElementById('cc-lock-screen').style.display = 'flex';
+  document.getElementById('cc-main').style.display = 'none';
+  document.getElementById('cc-pwd-inp').value = '';
+  document.getElementById('cc-pwd-err').style.display = 'none';
+}
+function initCCPage(){
+  if(_ccUnlocked && SC){
+    document.getElementById('cc-lock-screen').style.display = 'none';
+    document.getElementById('cc-main').style.display = 'block';
+  } else {
+    document.getElementById('cc-lock-screen').style.display = 'flex';
+    document.getElementById('cc-main').style.display = 'none';
+    setTimeout(()=>{ const i=document.getElementById('cc-pwd-inp'); if(i) i.focus(); }, 300);
+  }
+}
+
+// ── 渲染 ──
+function renderCCPage(){
+  if(!SC) return;
+  // 總覽
+  const sg = document.getElementById('cc-summary-grid');
+  if(sg) sg.innerHTML = `
+    <div class="sc2"><div class="lbl">每月總分期</div><div class="val vr">NT$${f(ccTotalMonthly())}</div></div>
+    <div class="sc2"><div class="lbl">各卡待還總額</div><div class="val vgo">NT$${f(ccTotalRemaining())}</div></div>
+    <div class="sc2"><div class="lbl">張數</div><div class="val vb">${SC.cards.length} 張</div></div>
+  `;
+  // 各卡片
+  const con = document.getElementById('cc-cards-container');
+  if(!con) return;
+  con.innerHTML = SC.cards.map((card,ci)=>{
+    const monthly = ccCardMonthly(card);
+    const remaining = ccCardRemaining(card);
+    const itemRows = card.items.map((item,ii)=>{
+      const left = ccItemLeft(item);
+      const leftAmt = ccItemLeftAmt(item);
+      const total = item.monthly * item.periods;
+      const pct = item.periods > 0 ? Math.round(item.paid/item.periods*100) : 0;
+      return `<tr>
+        <td style="font-weight:500;font-size:13px">${item.name}${item.note?` <span class="pill pgr" style="font-size:10px">${item.note}</span>`:''}</td>
+        <td class="tr" style="color:var(--o2);font-size:13px">NT$${f(item.monthly)}</td>
+        <td class="tr" style="font-size:12px;color:var(--tl)">${item.paid}/${item.periods}期</td>
+        <td class="tr" style="color:var(--da);font-size:13px">NT$${f(leftAmt)}</td>
+        <td class="tr">
+          <button class="btn btn-g btn-xs" onclick="ccEditItem(${ci},${ii})">編輯</button>
+          <button class="btn btn-d btn-xs" style="margin-left:3px" onclick="ccDelItem(${ci},${ii})">×</button>
+        </td>
+      </tr>
+      <tr><td colspan="5" style="padding:0 0 6px">
+        <div style="height:4px;background:rgba(74,155,190,.15);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${card.color};border-radius:2px"></div>
+        </div>
+      </td></tr>`;
+    }).join('');
+    return `<div class="card" style="border-left:3.5px solid ${card.color};margin-bottom:.875rem">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.75rem;gap:8px;flex-wrap:wrap">
+        <div>
+          <div class="card-title" style="margin:0 0 4px">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${card.color};margin-right:6px"></span>
+            ${card.name}
+          </div>
+          <div style="font-size:11px;color:var(--tl)">${card.bank} · ${card.tag} · ${card.annualFee}</div>
+        </div>
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-g btn-xs" onclick="ccEditCard(${ci})">編輯卡片</button>
+          <button class="btn btn-d btn-xs" onclick="ccDelCard(${ci})">刪除</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:.875rem">
+        <div class="sc2" style="flex:1;padding:.625rem"><div class="lbl">每月分期</div><div class="val vr" style="font-size:15px">NT$${f(monthly)}</div></div>
+        <div class="sc2" style="flex:1;padding:.625rem"><div class="lbl">待還總額</div><div class="val vgo" style="font-size:15px">NT$${f(remaining)}</div></div>
+      </div>
+      ${card.items.length?`<div style="overflow-x:auto"><table class="tbl">
+        <thead><tr><th>分期項目</th><th class="tr">每月</th><th class="tr">已付/總期</th><th class="tr">剩餘金額</th><th></th></tr></thead>
+        <tbody>${itemRows}</tbody>
+      </table></div>`:'<div style="font-size:13px;color:var(--th);padding:.5rem 0">尚無分期項目</div>'}
+      <button class="btn btn-g btn-sm" style="margin-top:.75rem;width:100%" onclick="ccAddItem(${ci})">＋ 新增分期項目</button>
+      ${card.note?`<div style="margin-top:.625rem;font-size:12px;color:var(--tl)">💡 ${card.note}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// ── 編輯 Modal（共用）──
+function ccModal(title, bodyHtml, onOk){
+  const existing = document.getElementById('cc-modal-bg');
+  if(existing) existing.remove();
+  const bg = document.createElement('div');
+  bg.id = 'cc-modal-bg';
+  bg.className = 'modal-bg open';
+  bg.innerHTML = `<div class="modal-sheet" style="border-radius:var(--r);max-width:480px;margin:auto">
+    <h3 style="font-size:16px;font-weight:700;color:var(--td);margin-bottom:1rem">${title}</h3>
+    <div id="cc-modal-body">${bodyHtml}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem">
+      <button class="btn btn-g btn-sm" onclick="document.getElementById('cc-modal-bg').remove()">取消</button>
+      <button class="btn btn-p btn-sm" onclick="ccModalOk()">確認</button>
+    </div>
+  </div>`;
+  bg.addEventListener('click', e=>{ if(e.target===bg) bg.remove(); });
+  document.body.appendChild(bg);
+  window._ccModalOk = onOk;
+}
+function ccModalOk(){ if(window._ccModalOk) window._ccModalOk(); }
+
+// ── 新增/編輯卡片 ──
+function ccAddCard(){
+  ccModal('新增信用卡',`
+    <div class="form-row"><span class="form-label">卡片名稱</span><input id="cm-name" class="form-input" placeholder="例：台新 GoGo 黑狗卡"></div>
+    <div class="form-row"><span class="form-label">銀行</span><input id="cm-bank" class="form-input" placeholder="例：台新銀行"></div>
+    <div class="form-row"><span class="form-label">用途標籤</span><input id="cm-tag" class="form-input" placeholder="例：刷超商/超市"></div>
+    <div class="form-row"><span class="form-label">年費</span><input id="cm-fee" class="form-input" value="免年費"></div>
+    <div class="form-row"><span class="form-label">備註</span><input id="cm-note" class="form-input" placeholder="卡片特色或備注"></div>
+    <div class="form-row"><span class="form-label">卡片顏色</span><input id="cm-color" type="color" value="#4a9bbe" style="height:36px;width:60px;border-radius:var(--rs);border:1.5px solid var(--bo2)"></div>
+  `, ()=>{
+    const name = document.getElementById('cm-name').value.trim();
+    if(!name){ alert('請填入卡片名稱'); return; }
+    SC.cards.push({
+      id:'card_'+Date.now(),
+      name, bank:document.getElementById('cm-bank').value,
+      tag:document.getElementById('cm-tag').value,
+      annualFee:document.getElementById('cm-fee').value,
+      note:document.getElementById('cm-note').value,
+      color:document.getElementById('cm-color').value,
+      items:[]
+    });
+    ccSave(); renderCCPage();
+    document.getElementById('cc-modal-bg').remove();
+  });
+}
+function ccEditCard(ci){
+  const c = SC.cards[ci];
+  ccModal('編輯卡片',`
+    <div class="form-row"><span class="form-label">卡片名稱</span><input id="cm-name" class="form-input" value="${c.name}"></div>
+    <div class="form-row"><span class="form-label">銀行</span><input id="cm-bank" class="form-input" value="${c.bank||''}"></div>
+    <div class="form-row"><span class="form-label">用途標籤</span><input id="cm-tag" class="form-input" value="${c.tag||''}"></div>
+    <div class="form-row"><span class="form-label">年費</span><input id="cm-fee" class="form-input" value="${c.annualFee||''}"></div>
+    <div class="form-row"><span class="form-label">備註</span><input id="cm-note" class="form-input" value="${c.note||''}"></div>
+    <div class="form-row"><span class="form-label">卡片顏色</span><input id="cm-color" type="color" value="${c.color||'#4a9bbe'}" style="height:36px;width:60px;border-radius:var(--rs);border:1.5px solid var(--bo2)"></div>
+  `, ()=>{
+    c.name = document.getElementById('cm-name').value;
+    c.bank = document.getElementById('cm-bank').value;
+    c.tag  = document.getElementById('cm-tag').value;
+    c.annualFee = document.getElementById('cm-fee').value;
+    c.note = document.getElementById('cm-note').value;
+    c.color = document.getElementById('cm-color').value;
+    ccSave(); renderCCPage();
+    document.getElementById('cc-modal-bg').remove();
+  });
+}
+function ccDelCard(ci){
+  if(!confirm(`確定刪除「${SC.cards[ci].name}」及其所有分期項目？`)) return;
+  SC.cards.splice(ci,1); ccSave(); renderCCPage();
+}
+
+// ── 新增/編輯分期項目 ──
+function ccItemFormHtml(item){
+  const i = item || {};
+  return `
+    <div class="form-row"><span class="form-label">項目名稱</span><input id="ci-name" class="form-input" value="${i.name||''}" placeholder="例：iPhone 16 Pro Max"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:.875rem">
+      <div><span class="form-label">每月金額（元）</span><input id="ci-monthly" type="number" class="form-input" value="${i.monthly||''}" placeholder="0" oninput="ccCalcPreview()"></div>
+      <div><span class="form-label">總期數</span><input id="ci-periods" type="number" class="form-input" value="${i.periods||''}" placeholder="0" oninput="ccCalcPreview()"></div>
+      <div><span class="form-label">已付期數</span><input id="ci-paid" type="number" class="form-input" value="${i.paid||0}" placeholder="0" oninput="ccCalcPreview()"></div>
+    </div>
+    <div id="ci-preview" style="background:rgba(74,155,190,.08);border-radius:var(--rs);padding:.75rem;font-size:13px;color:var(--tm)">填入金額和期數後自動計算</div>
+    <div class="form-row" style="margin-top:.75rem"><span class="form-label">備註</span><input id="ci-note" class="form-input" value="${i.note||''}" placeholder="選填"></div>
+  `;
+}
+function ccCalcPreview(){
+  const monthly = +document.getElementById('ci-monthly')?.value||0;
+  const periods = +document.getElementById('ci-periods')?.value||0;
+  const paid    = +document.getElementById('ci-paid')?.value||0;
+  const left    = Math.max(0, periods - paid);
+  const total   = monthly * periods;
+  const leftAmt = monthly * left;
+  const el = document.getElementById('ci-preview');
+  if(el) el.innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <span>總金額：<strong style="color:var(--td)">NT$${(total).toLocaleString('zh-TW')}</strong></span>
+      <span>剩 ${left} 期：<strong style="color:var(--da)">NT$${(leftAmt).toLocaleString('zh-TW')}</strong></span>
+      <span>已付：<strong style="color:var(--gr)">NT$${(paid*monthly).toLocaleString('zh-TW')}</strong></span>
+    </div>`;
+}
+function ccAddItem(ci){
+  ccModal('新增分期項目', ccItemFormHtml(), ()=>{
+    const name    = document.getElementById('ci-name').value.trim();
+    const monthly = +document.getElementById('ci-monthly').value||0;
+    const periods = +document.getElementById('ci-periods').value||0;
+    const paid    = +document.getElementById('ci-paid').value||0;
+    const note    = document.getElementById('ci-note').value;
+    if(!name||!monthly||!periods){ alert('請填入項目名稱、每月金額和總期數'); return; }
+    SC.cards[ci].items.push({id:Date.now(), name, monthly, periods, paid, note});
+    ccSave(); renderCCPage();
+    document.getElementById('cc-modal-bg').remove();
+  });
+  // 讓 input 輸入時自動觸發計算
+  setTimeout(()=>{
+    ['ci-monthly','ci-periods','ci-paid'].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.addEventListener('input',ccCalcPreview);
+    });
+  }, 100);
+}
+function ccEditItem(ci, ii){
+  const item = SC.cards[ci].items[ii];
+  ccModal('編輯分期項目', ccItemFormHtml(item), ()=>{
+    item.name    = document.getElementById('ci-name').value;
+    item.monthly = +document.getElementById('ci-monthly').value||0;
+    item.periods = +document.getElementById('ci-periods').value||0;
+    item.paid    = +document.getElementById('ci-paid').value||0;
+    item.note    = document.getElementById('ci-note').value;
+    ccSave(); renderCCPage();
+    document.getElementById('cc-modal-bg').remove();
+  });
+  setTimeout(()=>{
+    ['ci-monthly','ci-periods','ci-paid'].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.addEventListener('input',ccCalcPreview);
+    }); ccCalcPreview();
+  }, 100);
+}
+function ccDelItem(ci, ii){
+  if(!confirm(`確定刪除「${SC.cards[ci].items[ii].name}」？`)) return;
+  SC.cards[ci].items.splice(ii,1); ccSave(); renderCCPage();
 }
 
 // ══════ 初始化 ══════
