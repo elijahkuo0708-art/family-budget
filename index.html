@@ -365,18 +365,10 @@ select:focus{border-color:var(--ac)}
 <div class="page" id="page-ledger">
   <div class="page-header">
     <div><div class="page-title">📒 帳本明細</div><div class="page-sub">中信子帳戶各分類收支紀錄（僅供查看）</div></div>
-    <select id="ledger-sub-sel" onchange="renderLedgerPage()" style="font-size:13px">
-      <option value="牌照燃料稅">牌照燃料稅</option>
-      <option value="汽車保險">汽車保險</option>
-      <option value="汽車保養費+車貸">汽車保養費+車貸</option>
-      <option value="人身保險">人身保險</option>
-      <option value="水電網路費">水電網路費</option>
-      <option value="生活雜支">生活雜支</option>
-      <option value="快樂基金">快樂基金</option>
-    </select>
   </div>
 
-  <!-- 子帳戶選擇橫向捲軸 -->
+  <!-- 子帳戶選擇按鈕列（隱藏 select，JS 仍用它追蹤值） -->
+  <select id="ledger-sub-sel" style="display:none"></select>
   <div class="month-tabs" id="ledger-sub-tabs" style="margin-bottom:1rem"></div>
 
   <!-- 餘額 stat -->
@@ -482,7 +474,7 @@ select:focus{border-color:var(--ac)}
         </div>
         <div class="form-row">
           <span class="form-label">子帳戶</span>
-          <select id="adhoc-cat" style="width:100%">
+          <select id="adhoc-cat" style="width:100%" onchange="renderSubPreview('adhoc-sub-preview',this.value)">
             <option value="汽車保險">汽車保險</option>
             <option value="汽車保養費+車貸">汽車保養費+車貸</option>
             <option value="牌照燃料稅">牌照燃料稅</option>
@@ -525,6 +517,8 @@ select:focus{border-color:var(--ac)}
         <div style="text-align:center;padding:1rem;color:var(--th);font-size:13px">尚未登錄單筆收支</div>
       </div>
     </div>
+    <!-- 子帳戶明細預覽（動態顯示） -->
+    <div id="adhoc-sub-preview"></div>
     <div class="br">
       <button class="btn btn-g" onclick="gotoStep(1)">← 上一步</button>
       <button class="btn btn-p" onclick="gotoStep(3)">下一步：代墊登錄 →</button>
@@ -536,8 +530,8 @@ select:focus{border-color:var(--ac)}
     <div class="card">
       <div class="card-title">代墊費用登錄 <span class="badge">Step 4</span></div>
       <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:flex-end">
-        <div style="flex:1.4;min-width:110px"><span class="form-label">分類帳戶</span>
-          <select id="new-cat" style="width:100%"><option>汽車保險</option><option>汽車保養費+車貸</option><option>牌照燃料稅</option><option>人身保險</option><option>水電網路費</option><option>生活雜支</option><option>快樂基金</option><option>房貸</option><option>急難金</option><option>其他</option></select>
+        <div style="flex:1.4;min-width:110px"><span class="form-label">子帳戶</span>
+          <select id="new-cat" style="width:100%" onchange="renderSubPreview('exp-sub-preview',this.value)"><option>汽車保險</option><option>汽車保養費+車貸</option><option>牌照燃料稅</option><option>人身保險</option><option>水電網路費</option><option>生活雜支</option><option>快樂基金</option><option>房貸</option><option>急難金</option><option>其他</option></select>
         </div>
         <div style="flex:2;min-width:120px"><span class="form-label">說明（選填）</span><input type="text" id="new-desc" placeholder="例：機油分期" class="form-input" style="font-size:13px"></div>
         <div style="flex:1;min-width:90px"><span class="form-label">金額（元）</span><input type="number" id="new-amt" placeholder="0" class="form-input" style="text-align:right;font-size:13px"></div>
@@ -553,6 +547,8 @@ select:focus{border-color:var(--ac)}
       <div class="sc2"><div class="lbl">仲維代墊合計</div><div class="val vb" id="tot-zw-exp">NT$0</div></div>
       <div class="sc2"><div class="lbl">馨誼代墊合計</div><div class="val vt" id="tot-xy-exp">NT$0</div></div>
     </div>
+    <!-- 子帳戶明細預覽（動態顯示） -->
+    <div id="exp-sub-preview"></div>
     <div class="br">
       <button class="btn btn-g" onclick="gotoStep(2)">← 上一步</button>
       <button class="btn btn-p" onclick="gotoStep(4)">下一步：轉帳計算 →</button>
@@ -744,6 +740,34 @@ select:focus{border-color:var(--ac)}
 </nav>
 
 <div class="toast" id="toast"></div>
+
+<!-- ── 開啟提醒 Modal ── -->
+<div class="modal-bg" id="sync-reminder-modal">
+  <div class="modal-sheet" style="border-radius:var(--r);max-width:440px;margin:auto">
+    <div style="text-align:center;padding:.5rem 0 1rem">
+      <div style="font-size:36px;margin-bottom:.5rem">☁</div>
+      <h3 style="font-size:17px;font-weight:700;color:var(--td);margin-bottom:.5rem">記帳前請先同步</h3>
+      <p style="font-size:13px;color:var(--tl);line-height:1.7;margin-bottom:1.25rem">
+        建議先從 Google Drive 下載最新資料，<br>確保兩人的記錄是一致的。
+      </p>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-p" onclick="closeSyncReminder();showPage('page-drive')">
+          ☁ 前往 Drive 同步
+        </button>
+        <button class="btn btn-g" onclick="closeSyncReminder()">
+          稍後再說
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function closeSyncReminder(){
+  const m=document.getElementById('sync-reminder-modal');
+  if(m) m.classList.remove('open');
+}
+</script>
 
 <script>
 // ══════ 資料結構 ══════
@@ -1048,6 +1072,14 @@ function gotoStep(i){
   for(let j=0;j<6;j++){
     document.getElementById('sc-'+j).classList.toggle('active',j===i);
     document.getElementById('st-'+j).classList.toggle('active',j===i);
+  }
+  if(i===2){
+    const cat=document.getElementById('adhoc-cat');
+    if(cat) renderSubPreview('adhoc-sub-preview', cat.value);
+  }
+  if(i===3){
+    const cat=document.getElementById('new-cat');
+    if(cat) renderSubPreview('exp-sub-preview', cat.value);
   }
   if(i===4)renderCalc();
   if(i===5)renderChk();
@@ -1419,58 +1451,103 @@ function refreshOverview(){
   renderAdhoc();
 }
 
-// ══════ 帳本明細 ══════
-function renderLedgerPage(){
-  // Sub-account tabs
-  const subList=[
-    {name:'牌照燃料稅',id:'road_tax'},
-    {name:'汽車保險',id:'car_ins'},
-    {name:'汽車保養費+車貸',id:'car_maint'},
-    {name:'人身保險',id:'life_ins'},
-    {name:'水電網路費',id:'utilities'},
-    {name:'生活雜支',id:'children'},
-    {name:'快樂基金',id:'happy'},
-  ];
-  const sel=document.getElementById('ledger-sub-sel');
-  const selectedName=sel?sel.value:subList[0].name;
+// ══════ 子帳戶明細預覽（單筆收支 & 代墊用）══════
+const SUB_NAMES_LIST=['汽車保險','汽車保養費+車貸','牌照燃料稅','人身保險','水電網路費','生活雜支','快樂基金'];
 
-  // Render tab pills
+function renderSubPreview(containerId, subName){
+  const el=document.getElementById(containerId);
+  if(!el)return;
+  // Only show for actual sub-accounts
+  if(!SUB_NAMES_LIST.includes(subName)){el.innerHTML='';return;}
+
+  // Build all transactions for this sub across all months + current
+  const rows=[];
+  for(let m=1;m<=12;m++){
+    const snap=S.months[m]||null;
+    const isCur=(m===S.month);
+    const src=isCur?S:snap;
+    if(!src)continue;
+    const prov=(src.provisions||[]).find(p=>p.label===subName);
+    if(prov&&prov.amt>0) rows.push({m,src:'提撥',desc:'每月提撥',inc:prov.amt,exp:0,cur:isCur});
+    (src.expenses||[]).filter(e=>e.cat===subName).forEach(e=>{
+      rows.push({m,src:'代墊',desc:e.desc||subName,inc:0,exp:e.amt,cur:isCur});
+    });
+    (src.adhoc||[]).filter(a=>a.cat===subName).forEach(a=>{
+      rows.push({m,src:'單筆',desc:a.desc||subName,inc:a.type==='income'?a.amt:0,exp:a.type==='expense'?a.amt:0,cur:isCur});
+    });
+  }
+
+  let running=0;
+  const rowsHtml=rows.map(r=>{
+    running+=r.inc-r.exp;
+    return`<tr${r.cur?' style="background:rgba(74,155,190,.08)"':''}>
+      <td style="font-size:11px;white-space:nowrap;color:var(--tl)">${r.m}月${r.cur?' <span style=\"color:var(--o2)\">●</span>':''}</td>
+      <td><span style="font-size:10px;padding:1px 5px;border-radius:6px;background:rgba(74,155,190,.12);color:var(--tl)">${r.src}</span></td>
+      <td style="font-size:12px;color:var(--td)">${r.desc}</td>
+      <td class="pos tr" style="font-size:12px">${r.inc>0?'+'+f(r.inc):''}</td>
+      <td class="neg tr" style="font-size:12px">${r.exp>0?'-'+f(r.exp):''}</td>
+      <td class="tr" style="font-size:12px;font-weight:600;color:var(--td)">NT$${f(running)}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML=`<div class="card" style="margin-top:.875rem;border:1.5px solid var(--bo2);background:rgba(200,230,248,.18)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+      <div class="card-title" style="margin:0">📊 ${subName} 明細預覽</div>
+      <div>
+        <span style="font-size:11px;color:var(--tl);margin-right:6px">目前累積餘額</span>
+        <span style="font-size:16px;font-weight:700;color:${running>=0?'var(--gr)':'var(--da)'}"">NT$${f(running)}</span>
+      </div>
+    </div>
+    ${rows.length
+      ? `<div style="overflow-x:auto"><table class="tbl" style="font-size:12px">
+          <thead><tr><th>月份</th><th>來源</th><th>說明</th><th class="tr">存入</th><th class="tr">支出</th><th class="tr">餘額</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table></div>`
+      : '<div style="text-align:center;padding:.75rem;color:var(--th);font-size:12px">尚無紀錄</div>'
+    }
+  </div>`;
+}
+
+// ══════ 帳本明細 ══════
+let _ledgerSelected='牌照燃料稅';
+function selectLedgerSub(name){_ledgerSelected=name;renderLedgerPage();}
+
+function renderLedgerPage(){
+  const subList=[
+    {name:'牌照燃料稅'},{name:'汽車保險'},{name:'汽車保養費+車貸'},
+    {name:'人身保險'},{name:'水電網路費'},{name:'生活雜支'},{name:'快樂基金'},
+  ];
+  const selectedName=_ledgerSelected||'牌照燃料稅';
+
+  // 渲染按鈕列
   const tabsEl=document.getElementById('ledger-sub-tabs');
   if(tabsEl){
     tabsEl.innerHTML=subList.map(s=>
-      `<button class="month-tab${s.name===selectedName?' active':''}" onclick="document.getElementById('ledger-sub-sel').value='${s.name}';renderLedgerPage()">${s.name}</button>`
+      `<button class="month-tab${s.name===selectedName?' active':''}" onclick="selectLedgerSub('${s.name}')">${s.name}</button>`
     ).join('');
   }
 
-  // Find monthly provision for this sub
+  // 每月提撥金額
   const provItem=S.provisions.find(p=>p.label===selectedName)||PD.find(p=>p.label===selectedName)||{amt:0,monthly:0};
   st('ledger-monthly','NT$'+f(provItem.amt||provItem.monthly||0));
 
   const titleEl=document.getElementById('ledger-card-title');
   if(titleEl)titleEl.textContent=selectedName+' 帳目明細';
 
-  // Build ledger rows from all months
-  // Each month: provision (income row) + expense rows from 代墊 + single-entry rows
+  // 建立所有月份的流水列
   const rows=[];
-
   for(let m=1;m<=12;m++){
-    const snap=S.months[m]||null;
     const isCurrent=m===S.month;
-    const src=isCurrent?S:snap;
+    const src=isCurrent?S:(S.months[m]||null);
     if(!src)continue;
 
-    // Fixed provision for this month
     const prov=(src.provisions||[]).find(p=>p.label===selectedName);
     if(prov&&prov.amt>0){
       rows.push({month:m,source:'固定提撥',desc:'每月提撥',income:prov.amt,expense:0});
     }
-
-    // 代墊 expenses for this sub-account
     (src.expenses||[]).filter(e=>e.cat===selectedName).forEach(e=>{
-      rows.push({month:m,source:'代墊支出',desc:e.desc||e.cat,income:0,expense:e.amt});
+      rows.push({month:m,source:'代墊支出',desc:e.desc||selectedName,income:0,expense:e.amt});
     });
-
-    // Single-entry (adhoc) affecting this sub
     (src.adhoc||[]).filter(a=>a.cat===selectedName).forEach(a=>{
       rows.push({month:m,source:'單筆收支',desc:a.desc||(a.type==='income'?'存入':'支出'),income:a.type==='income'?a.amt:0,expense:a.type==='expense'?a.amt:0,note:a.note});
     });
@@ -1568,7 +1645,11 @@ loadFromLocal();
 setTimeout(trySilentSignIn, 500);
 refreshOverview();
 renderEmPage();
-// ledger will render on demand when page is opened
+// 開啟時提示同步
+setTimeout(()=>{
+  const modal = document.getElementById('sync-reminder-modal');
+  if(modal) modal.classList.add('open');
+}, 800);
 </script>
 </body>
 </html>
