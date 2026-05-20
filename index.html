@@ -1217,10 +1217,31 @@ function renderProv(){
 function renderProvTot(){st('total-prov','NT$'+f(S.provisions.reduce((s,p)=>s+p.amt,0)));}
 function confirmProvision(){
   S.provisionConfirmed=true;
-  const ps=document.getElementById('prov-status');if(ps){ps.textContent='✓ 已確認提撥';ps.style.color='var(--ac2)';}
+
+  // 自動將急難金提撥金額寫入急難金流水帳（每月只寫一次）
+  const emAmt = S.provisions.find(p=>p.id==='emergency')?.amt||0;
+  if(emAmt>0){
+    if(!S.emergencyLedger) S.emergencyLedger=[];
+    // 防止重複：檢查同月份是否已有「固定提撥」紀錄
+    const dupKey = `auto_${S.month}`;
+    const alreadyExists = S.emergencyLedger.some(r=>r._autoKey===dupKey);
+    if(!alreadyExists){
+      S.emergencyLedger.push({
+        id: Date.now(),
+        date: S.month+'/20',
+        item: S.month+'月急難金提撥',
+        type: 'income',
+        amt: emAmt,
+        _autoKey: dupKey  // 用來防重複的隱藏識別
+      });
+      renderEmPage(); // 更新急難金頁面餘額
+    }
+  }
+
+  const ps=document.getElementById('prov-status');if(ps){ps.textContent='✓ 已確認提撥（急難金已自動記入）';ps.style.color='var(--ac2)';}
   const ph=document.getElementById('prov-hint');if(ph)ph.style.display='none';
   const st1=document.getElementById('st-1');if(st1)st1.classList.add('done');
-  saveToLocal();toast('提撥已確認 ✓');
+  saveToLocal();toast('提撥已確認，急難金已自動記入 ✓');
 }
 
 // ══════ 單筆收支 ══════
@@ -1515,7 +1536,7 @@ function refreshOverview(){
   // 年度表格
   const tb=document.getElementById('year-tbody');if(!tb)return;
   let rows='';
-  for(let m=1;m<=12;m++){
+  for(let m=12;m>=1;m--){
     const snap=S.months[m]||(m===S.month?null:null);
     if(m===S.month){
       const c2=calcNumbers();
@@ -1566,16 +1587,18 @@ function renderSubPreview(containerId, subName){
     });
   }
 
+  // 正向算每行餘額，倒序顯示
   let running=0;
-  const rowsHtml=rows.map(r=>{
-    running+=r.inc-r.exp;
+  const rowsWithBal2=rows.map(r=>{running+=r.inc-r.exp;return{...r,bal:running};});
+  const finalPrevBal=rowsWithBal2.length?rowsWithBal2[rowsWithBal2.length-1].bal:0;
+  const rowsHtml=[...rowsWithBal2].reverse().map(r=>{
     return`<tr${r.cur?' style="background:rgba(74,155,190,.08)"':''}>
       <td style="font-size:11px;white-space:nowrap;color:var(--tl)">${r.m}月${r.cur?' <span style=\"color:var(--o2)\">●</span>':''}</td>
       <td><span style="font-size:10px;padding:1px 5px;border-radius:6px;background:rgba(74,155,190,.12);color:var(--tl)">${r.src}</span></td>
       <td style="font-size:12px;color:var(--td)">${r.desc}</td>
       <td class="pos tr" style="font-size:12px">${r.inc>0?'+'+f(r.inc):''}</td>
       <td class="neg tr" style="font-size:12px">${r.exp>0?'-'+f(r.exp):''}</td>
-      <td class="tr" style="font-size:12px;font-weight:600;color:var(--td)">NT$${f(running)}</td>
+      <td class="tr" style="font-size:12px;font-weight:600;color:var(--td)">NT$${f(r.bal)}</td>
     </tr>`;
   }).join('');
 
@@ -1584,7 +1607,7 @@ function renderSubPreview(containerId, subName){
       <div class="card-title" style="margin:0">📊 ${subName} 明細預覽</div>
       <div>
         <span style="font-size:11px;color:var(--tl);margin-right:6px">目前累積餘額</span>
-        <span style="font-size:16px;font-weight:700;color:${running>=0?'var(--gr)':'var(--da)'}">NT$${f(running)}</span>
+        <span style="font-size:16px;font-weight:700;color:${finalPrevBal>=0?'var(--gr)':'var(--da)'}">NT$${f(finalPrevBal)}</span>
       </div>
     </div>
     ${rows.length
@@ -1642,7 +1665,7 @@ function renderLedgerPage(){
     });
   }
 
-  // Calculate running balance
+  // 先正向算每行累積餘額，再倒序顯示
   let running=0;
   const tb=document.getElementById('ledger-tbody');
   if(!tb)return;
@@ -1653,8 +1676,10 @@ function renderLedgerPage(){
     return;
   }
 
-  tb.innerHTML=rows.map(r=>{
-    running+=r.income-r.expense;
+  const rowsWithBal=rows.map(r=>{running+=r.income-r.expense;return{...r,bal:running};});
+  const finalBal=running;
+
+  tb.innerHTML=[...rowsWithBal].reverse().map(r=>{
     const isCur=r.month===S.month;
     return`<tr${isCur?' style="background:rgba(74,155,190,.06)"':''}>
       <td style="font-size:12px;white-space:nowrap">${r.month}月${isCur?' <span style=\"font-size:10px;color:var(--o2)\">本月</span>':''}</td>
@@ -1662,13 +1687,13 @@ function renderLedgerPage(){
       <td style="font-size:12px;color:var(--tl)">${r.desc}${r.note?`<br><span style="font-size:11px;color:var(--th)">${r.note}</span>`:''}</td>
       <td class="pos tr">${r.income>0?'NT$'+f(r.income):''}</td>
       <td class="neg tr">${r.expense>0?'NT$'+f(r.expense):''}</td>
-      <td class="tr" style="font-weight:500;color:var(--td)">NT$${f(running)}</td>
+      <td class="tr" style="font-weight:500;color:var(--td)">NT$${f(r.bal)}</td>
     </tr>`;
   }).join('');
 
-  st('ledger-bal','NT$'+f(running));
+  st('ledger-bal','NT$'+f(finalBal));
   const balEl=document.getElementById('ledger-bal');
-  if(balEl) balEl.style.color = running<0?'var(--da)':'var(--gr)';
+  if(balEl) balEl.style.color = finalBal<0?'var(--da)':'var(--gr)';
 }
 
 // ══════ 急難金功能 ══════
@@ -1712,21 +1737,27 @@ function renderEmPage(){
     ];
     saveToLocal();
   }
+  // 正向算每行餘額
   let running=0;
-  const rows=S.emergencyLedger.map(r=>{
+  const emRowsWithBal=S.emergencyLedger.map(r=>{
     running+=(r.type==='income'?r.amt:-r.amt);
+    return{...r,bal:running};
+  });
+  const finalEmBal=running;
+  // 倒序渲染
+  const rows=[...emRowsWithBal].reverse().map(r=>{
     return`<tr>
       <td style="font-size:12px;white-space:nowrap;color:var(--tl)">${r.date||'—'}</td>
       <td>${r.item}</td>
       <td class="pos tr">${r.type==='income'?'+NT$'+f(r.amt):''}</td>
       <td class="neg tr">${r.type==='expense'?'−NT$'+f(r.amt):''}</td>
-      <td class="tr" style="font-weight:500;color:var(--td)">NT$${f(running)}</td>
+      <td class="tr" style="font-weight:500;color:var(--td)">NT$${f(r.bal)}</td>
       <td style="text-align:right"><button onclick="removeEmRecord(${r.id})" style="background:none;border:none;color:var(--da);cursor:pointer;font-size:18px;line-height:1;touch-action:manipulation">×</button></td>
     </tr>`;
   });
   const tb=document.getElementById('em-tbody');
   if(tb)tb.innerHTML=rows.length?rows.join(''):'<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--th)">尚無紀錄</td></tr>';
-  S.emergencyBalance=running;
+  S.emergencyBalance=finalEmBal;
   const el=document.getElementById('em-balance');
   if(el)el.textContent='NT$'+f(running);
 }
