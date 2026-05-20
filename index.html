@@ -280,7 +280,7 @@ select:focus{border-color:var(--ac)}
   <!-- 急難金 + 統計 -->
   <div class="g2" style="margin-bottom:.875rem">
     <div class="sc2"><div class="lbl">急難金餘額（台灣銀行）</div><div class="val vg" id="ov-emergency">NT$54,530</div></div>
-    <div class="sc2"><div class="lbl">中信帳戶本月應剩餘</div><div class="val vgo" id="ov-public">—</div></div>
+    <div class="sc2"><div class="lbl">中信子帳戶累積總額</div><div class="val vgo" id="ov-public">—</div></div>
   </div>
 
   <!-- 中信子帳戶 -->
@@ -352,8 +352,7 @@ select:focus{border-color:var(--ac)}
     <div class="card-title">本年度月份概況</div>
     <div style="overflow-x:auto">
       <table class="tbl" id="year-table">
-        <thead><tr><th>月份</th><th class="tr">收入</th><th class="tr">提撥</th><th class="tr">平均生活費</th><th class="tr">仲維轉入</th><th class="tr">馨誼轉入</th></tr></thead>
-        <tbody id="year-tbody"></tbody>
+        <thead><tr><th>月份</th><th class="tr">收入</th><th class="tr">提撥</th><th class="tr">平均生活費</th><th class="tr">仲維轉入</th><th class="tr">馨誼轉入</th><th class="tr">當月總支出</th></tr></thead>        <tbody id="year-tbody"></tbody>
       </table>
     </div>
   </div>
@@ -1327,6 +1326,30 @@ function calcNumbers(){
 function renderCalc(){
   const c=calcNumbers();
   const el=document.getElementById('calc-result');if(!el)return;
+  // 計算子帳戶累積加總（同 refreshOverview 的邏輯）
+  const subIds2=['road_tax','car_ins','car_maint','life_ins','utilities','children','happy'];
+  const subNames2={road_tax:'牌照燃料稅',car_ins:'汽車保險',car_maint:'汽車保養費+車貸',life_ins:'人身保險',utilities:'水電網路費',children:'生活雜支',happy:'快樂基金'};
+  let subTotal2=0;
+  subIds2.forEach(id=>{
+    let bal=0;
+    for(const m in S.months){
+      const snap=S.months[m];
+      if(snap&&snap.provisions){const p=snap.provisions.find(p=>p.id===id);if(p)bal+=p.amt;}
+      if(snap&&snap.expenses) snap.expenses.filter(e=>e.cat===subNames2[id]).forEach(e=>bal-=e.amt);
+      if(snap&&snap.adhoc){
+        snap.adhoc.filter(a=>a.type==='expense'&&a.cat===subNames2[id]).forEach(a=>bal-=a.amt);
+        snap.adhoc.filter(a=>a.type==='income'&&a.cat===subNames2[id]).forEach(a=>bal+=a.amt);
+      }
+    }
+    const p=S.provisions.find(p=>p.id===id);if(p)bal+=p.amt;
+    S.expenses.filter(e=>e.cat===subNames2[id]).forEach(e=>bal-=e.amt);
+    S.adhoc.filter(a=>a.type==='expense'&&a.cat===subNames2[id]).forEach(a=>bal-=a.amt);
+    S.adhoc.filter(a=>a.type==='income'&&a.cat===subNames2[id]).forEach(a=>bal+=a.amt);
+    subTotal2+=bal;
+  });
+  // 該月總支出 = 固定提撥 + 兩人生活費 + 兩人十一奉獻 + 代墊支出
+  const totalExp = c.tp + (c.al*2) + c.tzw + c.txy + c.ze + c.xe;
+
   el.innerHTML=`<div class="card"><div class="card-title">計算結果 <span class="badge">Step 5</span></div>
   <div class="g3" style="margin-bottom:1rem">
     <div class="sc2"><div class="lbl">家庭總收入</div><div class="val vb">NT$${f(c.ti)}</div></div>
@@ -1353,18 +1376,22 @@ function renderCalc(){
     </div>
   </div>
   <div class="sb">
-    <div style="font-size:11px;font-weight:700;color:var(--tl);letter-spacing:.06em;margin-bottom:6px">▸ 公款總進帳</div>
-    <div class="sr"><span>仲維轉入</span><span>NT$${f(c.zx)}</span></div>
-    <div class="sr"><span>馨誼轉入</span><span>NT$${f(c.xx)}</span></div>
-    <div class="sr"><span>房租＋其他直入</span><span>NT$${f(c.rent+c.other)}</span></div>
-    ${c.adhocInc||c.adhocExp?`<div class="sr"><span>單筆收支淨額（本月應支出）</span><span class="${c.adhocInc>=c.adhocExp?'pos':'neg'}">NT$${f(c.adhocInc-c.adhocExp)}</span></div>`:''}
-    <div class="sr" style="border-top:1px solid var(--bo2);margin-top:4px;padding-top:6px;color:var(--td)"><span>公款總進帳</span><span style="font-weight:600">NT$${f(c.publicIn)}</span></div>
-    <div style="font-size:11px;font-weight:700;color:var(--tl);letter-spacing:.06em;margin:10px 0 6px">▸ 直接匯出（不留在中信）</div>
-    <div class="sr"><span>房貸 → 第一銀行</span><span class="neg">−NT$${f(c.mortgageAmt)}</span></div>
-    <div class="sr"><span>急難金 → 台灣銀行</span><span class="neg">−NT$${f(c.emergencyAmt)}</span></div>
-    <div class="sr tot" style="margin-top:6px"><span>中信帳戶實際應剩餘</span><span style="color:var(--go)">NT$${f(c.ctbcBalance)}</span></div>
+    <div style="font-size:11px;font-weight:700;color:var(--tl);letter-spacing:.06em;margin-bottom:6px">▸ 本月公款收支明細</div>
+    <div class="sr"><span>仲維轉入公款</span><span class="pos">+${f(c.zx)}</span></div>
+    <div class="sr"><span>馨誼轉入公款</span><span class="pos">+${f(c.xx)}</span></div>
+    <div class="sr"><span>房租＋其他直入</span><span class="pos">+${f(c.rent+c.other)}</span></div>
+    ${c.adhocInc||c.adhocExp?`<div class="sr"><span>單筆收支淨額（本月應支出）</span><span class="${c.adhocInc>=c.adhocExp?'pos':'neg'}">${c.adhocInc>=c.adhocExp?'+':'−'}${f(Math.abs(c.adhocInc-c.adhocExp))}</span></div>`:''}
+    <div class="sr"><span>代墊支出（仲維）</span><span class="neg">${c.ze>0?'−'+f(c.ze):'0'}</span></div>
+    <div class="sr"><span>代墊支出（馨誼）</span><span class="neg">${c.xe>0?'−'+f(c.xe):'0'}</span></div>
+    <div class="sr" style="border-top:1px solid var(--bo2);margin-top:6px;padding-top:8px;font-weight:700;font-size:15px;color:var(--td)">
+      <span>本月總支出</span>
+      <span class="neg">NT$${f(totalExp)}</span>
+    </div>
+    <div style="height:1px;background:var(--bo2);margin:10px 0"></div>
+    <div style="font-size:11px;font-weight:700;color:var(--tl);letter-spacing:.06em;margin-bottom:6px">▸ 中信帳戶核對</div>
+    <div class="sr"><span>子帳戶累積加總</span><span style="font-weight:600;color:${subTotal2>=0?'var(--go)':'var(--da)'}">NT$${f(subTotal2)}</span></div>
     <div style="font-size:11px;color:var(--tl);margin-top:6px;padding:6px 8px;background:rgba(74,155,190,.1);border-radius:6px">
-      ℹ 此金額含六個子帳戶虛擬提撥（NT$${f(c.subProvAmt)}），帳戶餘額應 ≥ 這個數字
+      ℹ 中信帳戶實際餘額應 ≥ NT$${f(subTotal2)}（子帳戶累積加總）
     </div>
   </div>
   ${c.zx<0?'<div class="al al-d" style="margin-top:.75rem">⚠ 仲維本月轉帳為負數，請確認代墊費用</div>':''}
@@ -1421,7 +1448,6 @@ function refreshOverview(){
   st('ov-emergency','NT$'+f(S.emergencyBalance));
   // 本月公款
   const c=calcNumbers();
-  st('ov-public','NT$'+f(c.ctbcBalance));
   st('ov-month-label','2026年 '+S.month+'月 資料');
 
   // 子帳戶格
@@ -1459,6 +1485,14 @@ function refreshOverview(){
     subBal[id]=bal;
   });
 
+  // 子帳戶累積總額（用來核對中信帳戶餘額）
+  const subTotal = subIds.reduce((s,id)=>s+subBal[id], 0);
+  const ovPubEl = document.getElementById('ov-public');
+  if(ovPubEl){
+    ovPubEl.textContent = 'NT$'+f(subTotal);
+    ovPubEl.style.color = subTotal >= 0 ? 'var(--go)' : 'var(--da)';
+  }
+
   subGrid.innerHTML=subIds.map(id=>{
     const monthly=S.provisions.find(p=>p.id===id)?.monthly||0;
     const bal=subBal[id];
@@ -1479,18 +1513,21 @@ function refreshOverview(){
     const snap=S.months[m]||(m===S.month?null:null);
     if(m===S.month){
       const c2=calcNumbers();
-      rows+=`<tr style="background:rgba(74,155,190,.07)"><td style="font-weight:700">${m}月 <span style="font-size:10px;color:var(--o2)">本月</span></td><td class="tr pos">+${f(c2.ti)}</td><td class="tr neg">-${f(c2.tp)}</td><td class="tr">NT$${f(c2.al)}</td><td class="tr vb">NT$${f(c2.zx)}</td><td class="tr vt">NT$${f(c2.xx)}</td></tr>`;
+      const totalExp=c2.tp+(c2.al*2)+c2.tzw+c2.txy;
+      rows+=`<tr style="background:rgba(74,155,190,.07)"><td style="font-weight:700">${m}月 <span style="font-size:10px;color:var(--o2)">本月</span></td><td class="tr pos">+${f(c2.ti)}</td><td class="tr neg">-${f(c2.tp)}</td><td class="tr">NT$${f(c2.al)}</td><td class="tr vb">NT$${f(c2.zx)}</td><td class="tr vt">NT$${f(c2.xx)}</td><td class="tr neg">-${f(totalExp)}</td></tr>`;
     } else if(snap){
       const inc=Object.values(snap.income||{}).reduce((s,v)=>s+v,0);
       const tp=(snap.provisions||[]).reduce((s,p)=>s+p.amt,0);
-      const al=Math.round((inc-tp)/2);
       const zw=snap.income?.zw||0,xy=snap.income?.xy||0;
+      const tzw=Math.round(zw/10),txy=Math.round(xy/10);
+      const al=Math.round((inc-tp-tzw-txy)/2);
       const ze=(snap.expenses||[]).filter(e=>e.person==='zw').reduce((s,e)=>s+e.amt,0);
       const xe=(snap.expenses||[]).filter(e=>e.person==='xy').reduce((s,e)=>s+e.amt,0);
-      const zx=zw-al-Math.round(zw/10)-ze;const xx=xy-al-Math.round(xy/10)-xe;
-      rows+=`<tr><td>${m}月</td><td class="tr">+${f(inc)}</td><td class="tr">-${f(tp)}</td><td class="tr">NT$${f(al)}</td><td class="tr">NT$${f(zx)}</td><td class="tr">NT$${f(xx)}</td></tr>`;
+      const zx=zw-al-tzw-ze;const xx=xy-al-txy-xe;
+      const totalExp=tp+(al*2)+tzw+txy;
+      rows+=`<tr><td>${m}月</td><td class="tr">+${f(inc)}</td><td class="tr">-${f(tp)}</td><td class="tr">NT$${f(al)}</td><td class="tr">NT$${f(zx)}</td><td class="tr">NT$${f(xx)}</td><td class="tr neg">-${f(totalExp)}</td></tr>`;
     } else {
-      rows+=`<tr><td style="color:var(--th)">${m}月</td><td colspan="5" style="text-align:center;color:var(--th);font-size:12px">—</td></tr>`;
+      rows+=`<tr><td style="color:var(--th)">${m}月</td><td colspan="6" style="text-align:center;color:var(--th);font-size:12px">—</td></tr>`;
     }
   }
   tb.innerHTML=rows;
@@ -1541,7 +1578,7 @@ function renderSubPreview(containerId, subName){
       <div class="card-title" style="margin:0">📊 ${subName} 明細預覽</div>
       <div>
         <span style="font-size:11px;color:var(--tl);margin-right:6px">目前累積餘額</span>
-        <span style="font-size:16px;font-weight:700;color:${running>=0?'var(--gr)':'var(--da)'}"">NT$${f(running)}</span>
+        <span style="font-size:16px;font-weight:700;color:${running>=0?'var(--gr)':'var(--da)'}">NT$${f(running)}</span>
       </div>
     </div>
     ${rows.length
@@ -1624,6 +1661,8 @@ function renderLedgerPage(){
   }).join('');
 
   st('ledger-bal','NT$'+f(running));
+  const balEl=document.getElementById('ledger-bal');
+  if(balEl) balEl.style.color = running<0?'var(--da)':'var(--gr)';
 }
 
 // ══════ 急難金功能 ══════
@@ -1868,26 +1907,51 @@ function initCCPage(){
 }
 
 // ── 渲染 ──
+// ── 繳費檢核：key = "cardId_YYYY-MM" ──
+function ccPayKey(cardId){
+  const now = new Date();
+  return cardId + '_' + now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+}
+function ccIsPaid(cardId){
+  if(!SC.paid_checks) SC.paid_checks = {};
+  return !!SC.paid_checks[ccPayKey(cardId)];
+}
+function ccTogglePaid(cardId){
+  if(!SC.paid_checks) SC.paid_checks = {};
+  const key = ccPayKey(cardId);
+  SC.paid_checks[key] = !SC.paid_checks[key];
+  ccSave(); renderCCPage();
+}
+
 function renderCCPage(){
   if(!SC) return;
+  if(!SC.paid_checks) SC.paid_checks = {};
+
+  // 本月已繳/未繳統計
+  const totalCards = SC.cards.filter(c=>ccCardMonthly(c)>0).length;
+  const paidCards  = SC.cards.filter(c=>ccCardMonthly(c)>0 && ccIsPaid(c.id)).length;
+
   // 總覽
   const sg = document.getElementById('cc-summary-grid');
   if(sg) sg.innerHTML = `
     <div class="sc2"><div class="lbl">每月總分期</div><div class="val vr">NT$${f(ccTotalMonthly())}</div></div>
     <div class="sc2"><div class="lbl">各卡待還總額</div><div class="val vgo">NT$${f(ccTotalRemaining())}</div></div>
-    <div class="sc2"><div class="lbl">張數</div><div class="val vb">${SC.cards.length} 張</div></div>
+    <div class="sc2"><div class="lbl">本月繳費進度</div><div class="val ${paidCards===totalCards?'vg':'vgo'}">${paidCards} / ${totalCards} 已繳</div></div>
   `;
+
   // 各卡片
   const con = document.getElementById('cc-cards-container');
   if(!con) return;
   con.innerHTML = SC.cards.map((card,ci)=>{
-    const monthly = ccCardMonthly(card);
+    const monthly   = ccCardMonthly(card);
     const remaining = ccCardRemaining(card);
+    const paid      = ccIsPaid(card.id);
+    const hasBill   = monthly > 0;
+
     const itemRows = card.items.map((item,ii)=>{
-      const left = ccItemLeft(item);
+      const left    = ccItemLeft(item);
       const leftAmt = ccItemLeftAmt(item);
-      const total = item.monthly * item.periods;
-      const pct = item.periods > 0 ? Math.round(item.paid/item.periods*100) : 0;
+      const pct     = item.periods > 0 ? Math.round(item.paid/item.periods*100) : 0;
       return `<tr>
         <td style="font-weight:500;font-size:13px">${item.name}${item.note?` <span class="pill pgr" style="font-size:10px">${item.note}</span>`:''}</td>
         <td class="tr" style="color:var(--o2);font-size:13px">NT$${f(item.monthly)}</td>
@@ -1904,6 +1968,30 @@ function renderCCPage(){
         </div>
       </td></tr>`;
     }).join('');
+
+    // 繳費檢核列
+    const payCheckRow = hasBill ? `
+      <div onclick="ccTogglePaid('${card.id}')" style="
+        display:flex;align-items:center;gap:10px;
+        padding:10px 12px;border-radius:var(--rs);margin-bottom:.875rem;
+        border:1.5px solid ${paid?'var(--ac2)':'var(--bo)'};
+        background:${paid?'rgba(56,178,172,.08)':'rgba(255,255,255,.55)'};
+        cursor:pointer;user-select:none;transition:all .2s
+      ">
+        <input type="checkbox" ${paid?'checked':''} style="width:18px;height:18px;accent-color:var(--ac2);flex-shrink:0;pointer-events:none">
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600;color:${paid?'var(--ac2)':'var(--td)'}">
+            ${paid?'✅ 本月已繳費':'本月帳款已繳費？'}
+          </div>
+          <div style="font-size:11px;color:var(--th);margin-top:1px">
+            ${paid?'點擊取消勾選':'繳完帳款後打勾 · 每月自動重置'}
+          </div>
+        </div>
+        <div style="font-size:15px;font-weight:700;color:${paid?'var(--ac2)':'var(--da)'}">
+          NT$${f(monthly)}
+        </div>
+      </div>` : '';
+
     return `<div class="card" style="border-left:3.5px solid ${card.color};margin-bottom:.875rem">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.75rem;gap:8px;flex-wrap:wrap">
         <div>
@@ -1918,6 +2006,7 @@ function renderCCPage(){
           <button class="btn btn-d btn-xs" onclick="ccDelCard(${ci})">刪除</button>
         </div>
       </div>
+      ${payCheckRow}
       <div style="display:flex;gap:8px;margin-bottom:.875rem">
         <div class="sc2" style="flex:1;padding:.625rem"><div class="lbl">每月分期</div><div class="val vr" style="font-size:15px">NT$${f(monthly)}</div></div>
         <div class="sc2" style="flex:1;padding:.625rem"><div class="lbl">待還總額</div><div class="val vgo" style="font-size:15px">NT$${f(remaining)}</div></div>
