@@ -1347,27 +1347,9 @@ function calcNumbers(){
 function renderCalc(){
   const c=calcNumbers();
   const el=document.getElementById('calc-result');if(!el)return;
-  // 計算子帳戶累積加總（同 refreshOverview 的邏輯）
-  const subIds2=['road_tax','car_ins','car_maint','life_ins','utilities','children','happy'];
-  const subNames2={road_tax:'牌照燃料稅',car_ins:'汽車保險',car_maint:'汽車保養費+車貸',life_ins:'人身保險',utilities:'水電網路費',children:'生活雜支',happy:'快樂基金'};
-  let subTotal2=0;
-  subIds2.forEach(id=>{
-    let bal=0;
-    for(const m in S.months){
-      const snap=S.months[m];
-      if(snap&&snap.provisions){const p=snap.provisions.find(p=>p.id===id);if(p)bal+=p.amt;}
-      if(snap&&snap.expenses) snap.expenses.filter(e=>e.cat===subNames2[id]).forEach(e=>bal-=e.amt);
-      if(snap&&snap.adhoc){
-        snap.adhoc.filter(a=>a.type==='expense'&&a.cat===subNames2[id]).forEach(a=>bal-=a.amt);
-        snap.adhoc.filter(a=>a.type==='income'&&a.cat===subNames2[id]).forEach(a=>bal+=a.amt);
-      }
-    }
-    const p=S.provisions.find(p=>p.id===id);if(p)bal+=p.amt;
-    S.expenses.filter(e=>e.cat===subNames2[id]).forEach(e=>bal-=e.amt);
-    S.adhoc.filter(a=>a.type==='expense'&&a.cat===subNames2[id]).forEach(a=>bal-=a.amt);
-    S.adhoc.filter(a=>a.type==='income'&&a.cat===subNames2[id]).forEach(a=>bal+=a.amt);
-    subTotal2+=bal;
-  });
+  // 子帳戶累積加總：直接沿用帳本明細的共用計算結果
+  const subNames2=['牌照燃料稅','汽車保險','汽車保養費+車貸','人身保險','水電網路費','生活雜支','快樂基金'];
+  const subTotal2=subNames2.reduce((s,name)=>s+getSubLedgerBalance(name),0);
   // 本月總支出 = 固定提撥（含房貸、急難金、子帳戶）+ 兩人生活費 + 兩人十一奉獻
   // 代墊是從子帳戶實際付出，已含在固定提撥的子帳戶累積裡，不重複加計
   const totalExp = c.tp + (c.al*2) + c.tzw + c.txy;
@@ -1481,35 +1463,10 @@ function refreshOverview(){
   const subIds=['road_tax','car_ins','car_maint','life_ins','utilities','children','happy'];
   const subNames={road_tax:'牌照燃料稅',car_ins:'汽車保險',car_maint:'汽車保養費+車貸',life_ins:'人身保險',utilities:'水電網路費',children:'生活雜支',happy:'快樂基金'};
   const subGrid=document.getElementById('sub-grid');if(!subGrid)return;
-  // 計算各子帳戶累積餘額（從各月提撥減去代墊支出）
+  // 子帳戶餘額：直接沿用帳本明細的共用計算結果，不重新計算
   const subBal={};
   subIds.forEach(id=>{
-    let bal=0;
-    // 加：所有月份的提撥
-    for(const m in S.months){
-      const snap=S.months[m];
-      if(snap&&snap.provisions){
-        const p=snap.provisions.find(p=>p.id===id);
-        if(p) bal+=p.amt;
-      }
-      // 減：代墊到這個分類的費用
-      if(snap&&snap.expenses){
-        snap.expenses.filter(e=>e.cat===subNames[id]).forEach(e=>bal-=e.amt);
-      }
-      // 減：單筆收支中從這個子帳戶的支出（不管應支出月份，都計入子帳戶累積）
-      if(snap&&snap.adhoc){
-        snap.adhoc.filter(a=>a.type==='expense'&&a.cat===subNames[id]).forEach(a=>bal-=a.amt);
-        snap.adhoc.filter(a=>a.type==='income'&&a.cat===subNames[id]).forEach(a=>bal+=a.amt);
-      }
-    }
-    // 加：本月提撥
-    const p=S.provisions.find(p=>p.id===id);if(p) bal+=p.amt;
-    // 減：本月代墊
-    S.expenses.filter(e=>e.cat===subNames[id]).forEach(e=>bal-=e.amt);
-    // 單次收支影響子帳戶
-    S.adhoc.filter(a=>a.type==='expense'&&a.cat===subNames[id]).forEach(a=>bal-=a.amt);
-    S.adhoc.filter(a=>a.type==='income'&&a.cat===subNames[id]).forEach(a=>bal+=a.amt);
-    subBal[id]=bal;
+    subBal[id]=getSubLedgerBalance(subNames[id]);
   });
 
   // 子帳戶累積總額（用來核對中信帳戶餘額）
@@ -1570,22 +1527,11 @@ function renderSubPreview(containerId, subName){
   // Only show for actual sub-accounts
   if(!SUB_NAMES_LIST.includes(subName)){el.innerHTML='';return;}
 
-  // Build all transactions for this sub across all months + current
-  const rows=[];
-  for(let m=1;m<=12;m++){
-    const snap=S.months[m]||null;
-    const isCur=(m===S.month);
-    const src=isCur?S:snap;
-    if(!src)continue;
-    const prov=(src.provisions||[]).find(p=>p.label===subName);
-    if(prov&&prov.amt>0) rows.push({m,src:'提撥',desc:'每月提撥',inc:prov.amt,exp:0,cur:isCur});
-    (src.expenses||[]).filter(e=>e.cat===subName).forEach(e=>{
-      rows.push({m,src:'代墊',desc:e.desc||subName,inc:0,exp:e.amt,cur:isCur});
-    });
-    (src.adhoc||[]).filter(a=>a.cat===subName).forEach(a=>{
-      rows.push({m,src:'單筆',desc:a.desc||subName,inc:a.type==='income'?a.amt:0,exp:a.type==='expense'?a.amt:0,cur:isCur});
-    });
-  }
+  // 使用共用函式取得資料來源，轉換成預覽用的欄位格式
+  const rows=getSubLedgerRows(subName).map(r=>({
+    m:r.month, src:r.source==='固定提撥'?'提撥':r.source==='代墊支出'?'代墊':'單筆',
+    desc:r.desc, inc:r.income, exp:r.expense, cur:r.month===S.month
+  }));
 
   // 正向算每行餘額，倒序顯示
   let running=0;
@@ -1624,6 +1570,30 @@ function renderSubPreview(containerId, subName){
 let _ledgerSelected='牌照燃料稅';
 function selectLedgerSub(name){_ledgerSelected=name;renderLedgerPage();}
 
+// ══════ 子帳戶共用計算（唯一資料來源，總覽/轉帳計算/帳本明細都呼叫這裡）══════
+function getSubLedgerRows(subName){
+  const rows=[];
+  for(let m=1;m<=12;m++){
+    const isCurrent=m===S.month;
+    const src=isCurrent?S:(S.months[m]||null);
+    if(!src)continue;
+    const prov=(src.provisions||[]).find(p=>p.label===subName);
+    if(prov&&prov.amt>0){
+      rows.push({month:m,source:'固定提撥',desc:'每月提撥',income:prov.amt,expense:0});
+    }
+    (src.expenses||[]).filter(e=>e.cat===subName).forEach(e=>{
+      rows.push({month:m,source:'代墊支出',desc:e.desc||subName,income:0,expense:e.amt});
+    });
+    (src.adhoc||[]).filter(a=>a.cat===subName).forEach(a=>{
+      rows.push({month:m,source:'單筆收支',desc:a.desc||(a.type==='income'?'存入':'支出'),income:a.type==='income'?a.amt:0,expense:a.type==='expense'?a.amt:0,note:a.note});
+    });
+  }
+  return rows;
+}
+function getSubLedgerBalance(subName){
+  return getSubLedgerRows(subName).reduce((s,r)=>s+r.income-r.expense,0);
+}
+
 function renderLedgerPage(){
   const subList=[
     {name:'牌照燃料稅'},{name:'汽車保險'},{name:'汽車保養費+車貸'},
@@ -1646,24 +1616,8 @@ function renderLedgerPage(){
   const titleEl=document.getElementById('ledger-card-title');
   if(titleEl)titleEl.textContent=selectedName+' 帳目明細';
 
-  // 建立所有月份的流水列
-  const rows=[];
-  for(let m=1;m<=12;m++){
-    const isCurrent=m===S.month;
-    const src=isCurrent?S:(S.months[m]||null);
-    if(!src)continue;
-
-    const prov=(src.provisions||[]).find(p=>p.label===selectedName);
-    if(prov&&prov.amt>0){
-      rows.push({month:m,source:'固定提撥',desc:'每月提撥',income:prov.amt,expense:0});
-    }
-    (src.expenses||[]).filter(e=>e.cat===selectedName).forEach(e=>{
-      rows.push({month:m,source:'代墊支出',desc:e.desc||selectedName,income:0,expense:e.amt});
-    });
-    (src.adhoc||[]).filter(a=>a.cat===selectedName).forEach(a=>{
-      rows.push({month:m,source:'單筆收支',desc:a.desc||(a.type==='income'?'存入':'支出'),income:a.type==='income'?a.amt:0,expense:a.type==='expense'?a.amt:0,note:a.note});
-    });
-  }
+  // 建立所有月份的流水列（共用函式）
+  const rows=getSubLedgerRows(selectedName);
 
   // 先正向算每行累積餘額，再倒序顯示
   let running=0;
